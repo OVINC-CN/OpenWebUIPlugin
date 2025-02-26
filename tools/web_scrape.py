@@ -9,6 +9,7 @@ version: 0.0.1
 licence: MIT
 """
 
+import traceback
 from urllib.parse import quote
 
 import httpx
@@ -18,6 +19,7 @@ from pydantic import BaseModel, Field
 class Tools:
     class Valves(BaseModel):
         scrape_proxy: str = Field(default="", description="proxy for scrape")
+        timeout: int = Field(default=60, description="timeout waiting for scraping result")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -39,6 +41,7 @@ class Tools:
         client = httpx.AsyncClient(
             proxy=self.valves.scrape_proxy or None,
             headers={"X-No-Cache": "true", "X-With-Images-Summary": "true", "X-With-Links-Summary": "true"},
+            timeout=self.valves.timeout,
         )
         try:
             response = await client.get(url=f"https://r.jina.ai/{quote(url)}")
@@ -52,6 +55,7 @@ class Tools:
             return response.text
         except Exception as err:
             message = f"failed to scrap {err}"
+            print(f"{message}\n{traceback.format_exc()}")
             await __event_emitter__(
                 {
                     "type": "status",
