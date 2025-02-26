@@ -8,12 +8,20 @@ requirements: httpx
 version: 0.0.1
 licence: MIT
 """
+
 from urllib.parse import quote
 
 import httpx
+from pydantic import BaseModel, Field
 
 
 class Tools:
+    class Valves(BaseModel):
+        scrape_proxy: str = Field(default="", description="proxy for scrape")
+
+    def __init__(self):
+        self.valves = self.Valves()
+
     async def web_scrape(self, url: str, __event_emitter__: callable) -> str:
         """
         Scrape and process a web page
@@ -28,12 +36,12 @@ class Tools:
             }
         )
 
-        client = httpx.AsyncClient()
+        client = httpx.AsyncClient(
+            proxy=self.valves.scrape_proxy or None,
+            headers={"X-No-Cache": "true", "X-With-Images-Summary": "true", "X-With-Links-Summary": "true"},
+        )
         try:
-            response = await client.get(
-                url=f"https://r.jina.ai/{quote(url)}",
-                headers={"X-No-Cache": "true", "X-With-Images-Summary": "true", "X-With-Links-Summary": "true"},
-            )
+            response = await client.get(url=f"https://r.jina.ai/{quote(url)}")
             response.raise_for_status()
             await __event_emitter__(
                 {
@@ -43,11 +51,11 @@ class Tools:
             )
             return response.text
         except Exception as err:
-            message = f"failed to scrap: {err}"
+            message = f"failed to scrap {err}"
             await __event_emitter__(
                 {
                     "type": "status",
-                    "data": {"description": message, "done": True, "hidden": False},
+                    "data": {"description": message, "done": True, "hidden": True},
                 }
             )
             return message
