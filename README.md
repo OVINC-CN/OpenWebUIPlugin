@@ -1,2 +1,3 @@
-# OpenWebUIPlugin
+## OpenWebUIPlugin
+
 Plugin for Open WebUI

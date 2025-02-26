@@ -1,0 +1,24 @@
+[flake8]
+exclude = 
+    .git,
+    __pycache__,
+    *migrations*,
+    *.pyc,
+
+max-line-length = 120
+max-complexity = 25
+format=pylint      
+show_source = True    
+statistics = True    
+count = True
+select = C,E,F,W,B,B950
+ignore =
+    F405,
+    F9,
+    E203,
+    E231,
+    W503,
+    W291,
+    C901,
+
+per-file-ignores = __init__.py:F401
