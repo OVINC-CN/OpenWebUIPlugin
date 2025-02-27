@@ -11,8 +11,8 @@ licence: MIT
 
 from datetime import datetime
 
-import pytz
 from pydantic import BaseModel, Field
+from pytz import timezone
 
 
 class Tools:
@@ -30,7 +30,7 @@ class Tools:
         """
         self.user_valves = __user__.get("valves", self.user_valves)
         current_date = (
-            datetime.now().astimezone(pytz.timezone(self.user_valves.timezone)).strftime(self.user_valves.time_format)
+            datetime.now().astimezone(timezone(self.user_valves.timezone)).strftime(self.user_valves.time_format)
         )
         await __event_emitter__(
             {
