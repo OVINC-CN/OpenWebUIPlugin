@@ -29,6 +29,6 @@ class Filter:
         __user__ = __user__ or {}
         current_turns = len(body.get("messages", [])) // 2
         if current_turns >= self.valves.max_turns:
-            logger.info("[max_turns_reached] %s", __user__.get("name", __user__.get("id")))
+            logger.info("[max_turns_reached] %s", __user__.get("id"))
             raise Exception(f"max turns ({self.valves.max_turns}) reached, new conversation required")
         return body
