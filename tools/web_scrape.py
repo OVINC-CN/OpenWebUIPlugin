@@ -24,12 +24,14 @@ class Tools:
     def __init__(self):
         self.valves = self.Valves()
 
-    async def web_scrape(self, url: str, __event_emitter__: callable) -> str:
+    async def web_scrape(self, url: str, __event_emitter__: callable, __metadata__: dict) -> str:
         """
         Scrape and process a web page
         :param url: The URL to be scraped.
         :return: The scraped and processed content without the Links/Buttons section, or an error message.
         """
+
+        print(f"[web_scrape] {__metadata__.get('user_id')} {__metadata__.get('chat_id')} {url}")
 
         await __event_emitter__(
             {
