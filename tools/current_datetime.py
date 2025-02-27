@@ -32,7 +32,7 @@ class Tools:
         Get the current datetime.
         :return: The current datetime as a string.
         """
-        logger.info("[get_current_datetime] %s %s", __metadata__.get("user_id"), __metadata__.get("chat_id"))
+        logger.info("[get_current_datetime] %s %s", __user__.get("id"), __metadata__.get("chat_id"))
         self.user_valves = __user__.get("valves", self.user_valves)
         current_date = (
             datetime.now().astimezone(timezone(self.user_valves.timezone)).strftime(self.user_valves.time_format)
