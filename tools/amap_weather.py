@@ -9,10 +9,14 @@ version: 0.0.1
 licence: MIT
 """
 
+import logging
 import traceback
 
 from httpx import AsyncClient
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class Tools:
@@ -30,7 +34,7 @@ class Tools:
         :return: The weather data or an error message.
         """
 
-        print(f"[amap_weather] {__metadata__.get('user_id')} {__metadata__.get('chat_id')} {city}")
+        logger.info("[amap_weather] %s %s %s", __metadata__.get("user_id"), __metadata__.get("chat_id"), city)
 
         client = AsyncClient(timeout=self.valves.timeout)
         try:
