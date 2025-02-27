@@ -12,7 +12,7 @@ licence: MIT
 import traceback
 from urllib.parse import quote
 
-import httpx
+from httpx import AsyncClient
 from pydantic import BaseModel, Field
 
 
@@ -38,7 +38,7 @@ class Tools:
             }
         )
 
-        client = httpx.AsyncClient(
+        client = AsyncClient(
             proxy=self.valves.scrape_proxy or None,
             headers={"X-No-Cache": "true", "X-With-Images-Summary": "true", "X-With-Links-Summary": "true"},
             timeout=self.valves.timeout,
