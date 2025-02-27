@@ -78,12 +78,13 @@ class Filter:
             return body
 
         user_id = __user__.get("id", "unknown_user")
+        username = __user__.get("name", user_id)
 
         rate_limited, wait_time, request_count = self._check_rate(user_id)
         if rate_limited:
             future_time = datetime.now().astimezone(timezone(self.valves.timezone)) + timedelta(seconds=wait_time)
             future_time_str = future_time.strftime("%H:%M %Z")
-            logger.info("[rate_limit] %s %d %s", user_id, request_count, future_time_str)
+            logger.info("[rate_limit] %s %d %s", username, request_count, future_time_str)
             raise Exception(f"too many requests ({request_count}), please wait until {future_time_str}")
 
         self._log_request(user_id)
