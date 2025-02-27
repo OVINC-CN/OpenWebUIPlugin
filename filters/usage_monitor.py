@@ -82,7 +82,6 @@ class Filter:
         __user__ = __user__ or {}
         __metadata__ = __metadata__ or {}
         user_id = __user__["id"]
-        username = __user__.get("username", user_id)
 
         if self.outage_map[user_id]:
             return body
@@ -108,7 +107,7 @@ class Filter:
 
             await __event_emitter__({"type": "status", "data": {"description": stats, "done": True}})
 
-            logger.info("usage_monitor: %s %s", username, stats)
+            logger.info("usage_monitor: %s %s", user_id, stats)
             return body
 
         except Exception as err:
