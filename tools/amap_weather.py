@@ -11,7 +11,7 @@ licence: MIT
 
 import traceback
 
-import httpx
+from httpx import AsyncClient
 from pydantic import BaseModel, Field
 
 
@@ -30,7 +30,7 @@ class Tools:
         :return: The weather data or an error message.
         """
 
-        client = httpx.AsyncClient(timeout=self.valves.timeout)
+        client = AsyncClient(timeout=self.valves.timeout)
         try:
             response = await client.get(
                 url=(
