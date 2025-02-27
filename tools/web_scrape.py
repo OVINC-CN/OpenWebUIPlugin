@@ -35,7 +35,7 @@ class Tools:
         :return: The scraped and processed content without the Links/Buttons section, or an error message.
         """
 
-        logger.info("[web_scrape] %s %s %s", __user__.get("name"), __metadata__.get("chat_id"), url)
+        logger.info("[web_scrape] %s %s %s", __user__.get("id"), __metadata__.get("chat_id"), url)
 
         await __event_emitter__(
             {
