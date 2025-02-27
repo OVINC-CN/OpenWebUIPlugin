@@ -23,12 +23,14 @@ class Tools:
     def __init__(self):
         self.valves = self.Valves()
 
-    async def web_scrape(self, city: str) -> str:
+    async def amap_weather(self, city: str, __metadata__: dict) -> str:
         """
         Retrieve weather data for Chinese city
         :param city: The city which needs to be retrieved.
         :return: The weather data or an error message.
         """
+
+        print(f"[amap_weather] {__metadata__.get('user_id')} {__metadata__.get('chat_id')} {city}")
 
         client = AsyncClient(timeout=self.valves.timeout)
         try:
