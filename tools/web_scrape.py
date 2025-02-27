@@ -9,11 +9,15 @@ version: 0.0.1
 licence: MIT
 """
 
+import logging
 import traceback
 from urllib.parse import quote
 
 from httpx import AsyncClient
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class Tools:
@@ -31,7 +35,7 @@ class Tools:
         :return: The scraped and processed content without the Links/Buttons section, or an error message.
         """
 
-        print(f"[web_scrape] {__metadata__.get('user_id')} {__metadata__.get('chat_id')} {url}")
+        logger.info("[web_scrape] %s %s %s", __metadata__.get("user_id"), __metadata__.get("chat_id"), url)
 
         await __event_emitter__(
             {
