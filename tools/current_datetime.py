@@ -23,11 +23,12 @@ class Tools:
     def __init__(self):
         self.user_valves = self.UserValves()
 
-    async def get_current_datetime(self, __user__: dict, __event_emitter__: callable) -> str:
+    async def get_current_datetime(self, __user__: dict, __event_emitter__: callable, __metadata__: dict) -> str:
         """
         Get the current datetime.
         :return: The current datetime as a string.
         """
+        print(f"[get_current_datetime] {__metadata__.get('user_id')} {__metadata__.get('chat_id')}")
         self.user_valves = __user__.get("valves", self.user_valves)
         current_date = (
             datetime.now().astimezone(timezone(self.user_valves.timezone)).strftime(self.user_valves.time_format)
