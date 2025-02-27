@@ -774,4 +774,4 @@ class Tools:
             city = f"{city}市"
         if city in data:
             return data[city]
-        raise ValueError("不支持的城市")
+        raise ValueError("unsupported city")
