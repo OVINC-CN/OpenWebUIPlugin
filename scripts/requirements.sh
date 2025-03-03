@@ -1,1 +1,1 @@
-wget -o requirements.txt https://raw.githubusercontent.com/open-webui/open-webui/refs/heads/main/backend/requirements.txt
+curl https://raw.githubusercontent.com/open-webui/open-webui/refs/heads/main/backend/requirements.txt -o requirements.txt
