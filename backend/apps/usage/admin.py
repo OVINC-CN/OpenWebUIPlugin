@@ -9,9 +9,10 @@ from django.utils.translation import gettext_lazy
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
     list_display = ("model_id", "prompt_price", "completion_price")
-    ordering = ("model_id",)
+    ordering = ("model_name",)
     search_fields = ("model_id",)
     actions = ("sync_models",)
+    list_editable = ("prompt_price", "completion_price")
 
     @admin.action(description=gettext_lazy("Sync Models"))
     def sync_models(self, request: HttpRequest, queryset: QuerySet[AIModel]):
