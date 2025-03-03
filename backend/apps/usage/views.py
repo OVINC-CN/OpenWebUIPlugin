@@ -39,7 +39,6 @@ class UsageViewSet(MainViewSet):
             prompt_tokens=usage.get("prompt_tokens", 0),
             completion_tokens=usage.get("completion_tokens", 0),
             usage=usage,
-            user_info=req_data["user"],
         )
         balance = UserBalance.get_balance(
             user_id=req_data["user"]["id"], user_name=req_data["user"]["name"], email=req_data["user"]["email"]

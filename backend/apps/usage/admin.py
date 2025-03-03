@@ -35,9 +35,10 @@ class UsageLogAdmin(admin.ModelAdmin):
 
     @admin.display(description=gettext_lazy("User Name"))
     def user_name(self, obj: UsageLog) -> str:
-        if not obj.user_info:
+        try:
+            return obj.user.user_name
+        except UserBalance.DoesNotExist:  # pylint: disable=E1101
             return ""
-        return obj.user_info.get("name")
 
     @admin.display(description=gettext_lazy("Price"))
     def price(self, obj: UsageLog) -> str:

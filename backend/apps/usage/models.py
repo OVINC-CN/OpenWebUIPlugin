@@ -62,12 +62,11 @@ class UsageLog(PriceBaseModel):
     """
 
     id = UniqIDField(verbose_name=gettext_lazy("ID"), primary_key=True)
-    user_id = models.CharField(verbose_name=gettext_lazy("User ID"), max_length=MAX_CHAR_LENGTH, db_index=True)
+    user = ForeignKey(verbose_name=gettext_lazy("User"), to="UserBalance", on_delete=models.PROTECT, null=True)
     chat_id = models.CharField(verbose_name=gettext_lazy("Chat ID"), max_length=MAX_CHAR_LENGTH, db_index=True)
     model = ForeignKey(verbose_name=gettext_lazy("Model"), to="AIModel", on_delete=models.PROTECT)
     prompt_tokens = models.BigIntegerField(verbose_name=gettext_lazy("Prompt Tokens"))
     completion_tokens = models.BigIntegerField(verbose_name=gettext_lazy("Completion Tokens"))
-    user_info = models.JSONField(verbose_name=gettext_lazy("User Info"), null=True, blank=True, default=dict)
     usage = models.JSONField(verbose_name=gettext_lazy("Usage"), null=True, blank=True, default=dict)
     chat_at = models.DateTimeField(verbose_name=gettext_lazy("Chat at"), auto_now_add=True, db_index=True)
 
@@ -86,7 +85,6 @@ class UsageLog(PriceBaseModel):
         model: AIModel,
         prompt_tokens: int,
         completion_tokens: int,
-        user_info: dict,
         usage: dict,
     ) -> "UsageLog":
         log = cls.objects.create(
@@ -98,7 +96,6 @@ class UsageLog(PriceBaseModel):
             prompt_price=model.prompt_price,
             completion_price=model.completion_price,
             usage=usage,
-            user_info=user_info,
         )
         # pylint: disable=E1101
         UserBalance.objects.filter(user_id=user_id).update(
