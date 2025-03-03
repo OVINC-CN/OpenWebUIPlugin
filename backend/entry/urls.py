@@ -20,13 +20,16 @@ ADMIN_PAGE_LOGIN_URL = f"{settings.OVINC_WEB_URL}/login/?next={quote(FRONTEND_LO
 urlpatterns = [
     path("favicon.ico", RedirectView.as_view(url=f"{settings.FRONTEND_URL}/favicon.ico")),
     re_path(r"^static/(?P<path>.*)$", serve_static, name="static"),
-    path("admin/login/", RedirectView.as_view(url=ADMIN_PAGE_LOGIN_URL.replace("%", "%%"))),
     path("admin/", admin.site.urls),
     path("account/", include("ovinc_client.account.urls")),
     path("", include("apps.home.urls")),
     path("", include("apps.usage.urls")),
     path("", include("ovinc_client.trace.urls")),
 ]
+if not settings.LOCAL_MODE:
+    urlpatterns = [
+        path("admin/login/", RedirectView.as_view(url=ADMIN_PAGE_LOGIN_URL.replace("%", "%%"))),
+    ] + urlpatterns
 
 handler400 = exceptions.bad_request
 handler403 = exceptions.permission_denied

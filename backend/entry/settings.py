@@ -225,3 +225,6 @@ DEFAULT_TOKEN_PRICE = int(os.getenv("DEFAULT_TOKEN_PRICE", "60"))
 # Admin
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+# Local
+LOCAL_MODE = strtobool(os.getenv("LOCAL_MODE", "False"))
