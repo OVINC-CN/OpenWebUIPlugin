@@ -108,7 +108,7 @@ class UsageLog(PriceBaseModel):
         total_price = prompt_price + completion_price
         UserBalance.objects.filter(user_id=user_id).update(balance=F("balance") - total_price)
         logger.info(
-            "[usage log] user: %s, tokens: %d/%s, cost: %.4f", user_info, prompt_tokens, completion_tokens, total_price
+            "[usage log] user: %s, tokens: %d/%s, cost: %s", user_info, prompt_tokens, completion_tokens, total_price
         )
         return log
 
