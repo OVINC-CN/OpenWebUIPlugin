@@ -1,4 +1,5 @@
 from django.utils.translation import gettext_lazy
+from ovinc_client.core.logger import logger
 from rest_framework import serializers
 
 
@@ -26,7 +27,8 @@ class OutletBodySerializer(serializers.Serializer):
 
     def validate(self, attrs: dict) -> dict:
         data = super().validate(attrs)
-        if "usage" not in data["messages"][-1]:
+        if "usage" not in data["messages"][-1] or not data["messages"][-1]["usage"]:
+            logger.error("no usage info: %s", data["model"])
             raise serializers.ValidationError(gettext_lazy("usage info is required"))
         return data
 

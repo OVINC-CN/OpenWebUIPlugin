@@ -39,11 +39,14 @@ class AIModel(PriceBaseModel):
     model_id = models.CharField(
         verbose_name=gettext_lazy("Model ID"), primary_key=True, max_length=MAX_CHAR_LENGTH, unique=True
     )
+    model_name = models.CharField(
+        verbose_name=gettext_lazy("Model Name"), max_length=MAX_CHAR_LENGTH, db_index=True, null=True, blank=True
+    )
 
     class Meta:
         verbose_name = gettext_lazy("AI Model")
         verbose_name_plural = verbose_name
-        ordering = ["model_id"]
+        ordering = ["model_name"]
 
     def __str__(self) -> str:
         return f"{self.model_id}"

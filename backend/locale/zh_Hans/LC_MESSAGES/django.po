@@ -112,7 +112,7 @@ msgid "Message"
 msgstr "消息"
 
 msgid "usage info is required"
-msgstr "未提供用户信息"
+msgstr "未提供用量信息"
 
 msgid "Outlet Body"
 msgstr "输出内容"

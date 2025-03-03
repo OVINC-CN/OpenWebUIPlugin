@@ -14,6 +14,7 @@ class ModelInfo(PydanticBaseModel):
 
 class Model(PydanticBaseModel):
     id: str
+    name: str
     info: ModelInfo = Field(default_factory=lambda: ModelInfo(base_model_id=None))
 
 
@@ -41,6 +42,8 @@ class ModelSyncer:
         db_model_map: dict[str, AIModel] = {}
         for model in models:
             ai_model = AIModel.get_model(model.id)
+            ai_model.model_name = model.name
+            ai_model.save(update_fields=["model_name"])
             db_model_map[ai_model.model_id] = ai_model
             if model.info.base_model_id:
                 wait_list.append(model)
