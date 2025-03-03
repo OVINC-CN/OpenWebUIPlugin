@@ -43,7 +43,7 @@ class Filter:
     async def inlet(self, body: dict, __user__: dict = None) -> dict:
         user_id = __user__["id"]
 
-        client = AsyncClient()
+        client = AsyncClient(http2=True)
 
         try:
             response_data = await self.request(
@@ -74,7 +74,7 @@ class Filter:
     ) -> dict:
         user_id = __user__["id"]
 
-        client = AsyncClient()
+        client = AsyncClient(http2=True)
 
         try:
             response_data = await self.request(
