@@ -46,7 +46,6 @@ INSTALLED_APPS = [
     "sslserver",
     "ovinc_client.account",
     "ovinc_client.trace",
-    "apps.cel",
     "apps.home",
     "apps.usage",
 ]
