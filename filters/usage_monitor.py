@@ -10,7 +10,7 @@ license: MIT
 
 import logging
 
-from httpx import AsyncClient
+from httpx import AsyncClient, HTTPStatusError
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,11 @@ class Filter:
 
     async def request(self, client: AsyncClient, url: str, json: dict):
         response = await client.post(url=url, headers={"Authorization": f"Bearer {self.valves.api_key}"}, json=json)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except HTTPStatusError as err:
+            logger.error("response status invalid: %s %s", response.status_code, response.text)
+            raise err
         return response.json()["data"]
 
     async def inlet(self, body: dict, __user__: dict = None) -> dict:
