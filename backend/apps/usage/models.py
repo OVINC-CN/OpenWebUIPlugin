@@ -4,6 +4,7 @@ from django.db import models, transaction
 from django.db.models import F
 from django.utils.translation import gettext_lazy
 from ovinc_client.core.constants import MAX_CHAR_LENGTH
+from ovinc_client.core.logger import logger
 from ovinc_client.core.models import BaseModel, ForeignKey, UniqIDField
 
 
@@ -89,6 +90,7 @@ class UsageLog(PriceBaseModel):
         prompt_tokens: int,
         completion_tokens: int,
         usage: dict,
+        user_info: dict,
     ) -> "UsageLog":
         log = cls.objects.create(
             user_id=user_id,
@@ -101,10 +103,12 @@ class UsageLog(PriceBaseModel):
             usage=usage,
         )
         # pylint: disable=E1101
-        UserBalance.objects.filter(user_id=user_id).update(
-            balance=F("balance")
-            - (prompt_tokens * model.prompt_price / 1000 / 1000)
-            - (completion_tokens * model.completion_price / 1000 / 1000)
+        prompt_price = prompt_tokens * model.prompt_price / 1000 / 1000
+        completion_price = completion_tokens * model.completion_price / 1000 / 1000
+        total_price = prompt_price + completion_price
+        UserBalance.objects.filter(user_id=user_id).update(balance=F("balance") - total_price)
+        logger.info(
+            "[usage log] user: %s, tokens: %d/%s, cost: %.4f", user_info, prompt_tokens, completion_tokens, total_price
         )
         return log
 
