@@ -75,6 +75,9 @@ class UsageLog(PriceBaseModel):
         verbose_name_plural = verbose_name
         ordering = ["-chat_at"]
 
+    def __str__(self) -> str:
+        return f"{self.id}:{self.user}"
+
     # pylint: disable=R0913,R0917
     @classmethod
     @transaction.atomic
@@ -124,6 +127,9 @@ class UserBalance(models.Model):
         verbose_name = gettext_lazy("User Balance")
         verbose_name_plural = verbose_name
         ordering = ["user_name"]
+
+    def __str__(self) -> str:
+        return f"{self.user_name}:{self.user_id}"
 
     @classmethod
     def get_balance(cls, user_id: str, user_name: str = "", email: str = "") -> "UserBalance":
