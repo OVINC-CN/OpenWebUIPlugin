@@ -3,7 +3,7 @@ title: Usage Monitor
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.3.4
+version: 0.0.1
 requirements: httpx
 license: MIT
 """
@@ -25,6 +25,7 @@ class Filter:
     class Valves(BaseModel):
         api_endpoint: str = Field(default="", description="plugin base url")
         api_key: str = Field(default="", description="plugin api key")
+        timeout: int = Field(default=60, description="usage request timeout")
         priority: int = Field(default=5, description="filter priority")
 
     def __init__(self):
@@ -43,7 +44,7 @@ class Filter:
     async def inlet(self, body: dict, __user__: dict = None) -> dict:
         user_id = __user__["id"]
 
-        client = AsyncClient(http2=True)
+        client = AsyncClient(http2=True, timeout=self.valves.timeout)
 
         try:
             response_data = await self.request(
@@ -74,7 +75,7 @@ class Filter:
     ) -> dict:
         user_id = __user__["id"]
 
-        client = AsyncClient(http2=True)
+        client = AsyncClient(http2=True, timeout=self.valves.timeout)
 
         try:
             response_data = await self.request(

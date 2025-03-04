@@ -105,8 +105,12 @@ class Calculator:
 
     def __init__(self) -> None:
         self._encoder = {}
+        if settings.IGNORE_MODEL_ENCODING:
+            self.get_encoder(settings.DEFAULT_MODEL_FOR_TOKEN)
 
     def get_encoder(self, model_id: str) -> Encoding:
+        if settings.IGNORE_MODEL_ENCODING:
+            model_id = settings.DEFAULT_MODEL_FOR_TOKEN
         # remove prefix
         model_id_ops = model_id
         if settings.MODEL_PREFIX_TO_REMOVE:
