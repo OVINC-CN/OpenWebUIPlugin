@@ -1,6 +1,7 @@
 from apps.usage.authentication import BearerTokenAuthentication
 from apps.usage.models import AIModel, UsageLog, UserBalance
 from apps.usage.serializers import UsageInletSerializer, UsageOutletSerializer
+from apps.usage.utils import calculator
 from ovinc_client.core.auth import LoginRequiredAuthenticate
 from ovinc_client.core.viewsets import MainViewSet
 from rest_framework.decorators import action
@@ -31,14 +32,14 @@ class UsageViewSet(MainViewSet):
         req_slz = UsageOutletSerializer(data=request.data)
         req_slz.is_valid(raise_exception=True)
         req_data = req_slz.validated_data
-        usage = req_data["body"]["messages"][-1]["usage"]
+        usage = calculator.calculate_usage(body=req_data["body"])
         log = UsageLog.record(
             user_id=req_data["user"]["id"],
             chat_id=req_data["body"]["chat_id"],
             model=AIModel.get_model(req_data["body"]["model"]),
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            usage=usage,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            usage=usage.model_dump(),
             user_info=req_data["user"],
         )
         balance = UserBalance.get_balance(
