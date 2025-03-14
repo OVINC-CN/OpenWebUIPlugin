@@ -70,7 +70,7 @@ class UsageModel(PydanticBaseModel):
 class SourceSourceModel(PydanticBaseModel):
     model_config = ConfigDict(extra="allow")
 
-    id: str
+    id: Optional[str] = Field(default="")
 
 
 class SourceModel(PydanticBaseModel):
