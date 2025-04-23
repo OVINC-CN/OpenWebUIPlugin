@@ -60,6 +60,7 @@ class Filter:
         minute_key = self._key(user_id, minute_start_from)
         self._redis.expire(name=minute_key, time=datetime.timedelta(minutes=1))
         val = self._redis.incrby(name=minute_key, amount=1)
+        self._redis.expire(name=minute_key, time=datetime.timedelta(minutes=1))
         if val > self.valves.requests_per_minute:
             return True, minute_now + datetime.timedelta(minutes=1), val
 
