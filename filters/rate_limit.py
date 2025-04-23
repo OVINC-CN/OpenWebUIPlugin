@@ -1,21 +1,23 @@
 """
-title: Rate Limit
+title: Rate Limit (Redis)
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: Rate Limit
-requirements: pytz
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
+import datetime
 import logging
-import time
-from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
+import pytz
+import redis
 from pydantic import BaseModel, Field
-from pytz import timezone
+
+from open_webui.env import REDIS_URL, REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT
+from open_webui.utils.redis import get_redis_connection, get_sentinels_from_env
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -24,48 +26,67 @@ logger.setLevel(logging.INFO)
 class Filter:
     class Valves(BaseModel):
         priority: int = Field(default=0, description="filter priority")
-        requests_per_minute: Optional[int] = Field(default=10, description="maximum requests allowed per minute")
-        requests_per_hour: Optional[int] = Field(default=120, description="maximum requests allowed per hour")
+        requests_per_minute: Optional[int] = Field(
+            default=10, description="maximum requests allowed per minute"
+        )
+        requests_per_hour: Optional[int] = Field(
+            default=120, description="maximum requests allowed per hour"
+        )
         timezone: str = Field(default="Asia/Shanghai", description="timezone")
 
     def __init__(self):
         self.file_handler = False
         self.valves = self.Valves()
         self.user_map: Dict[str, List[float]] = {}
+        self._redis: redis.Redis = get_redis_connection(
+            redis_url=REDIS_URL,
+            redis_sentinels=get_sentinels_from_env(
+                REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT
+            ),
+            decode_responses=True,
+        )
 
-    def _check_rate(self, user_id: str) -> Tuple[bool, Optional[int], int]:
+    def _key(self, user_id: str, start_from: str) -> str:
+        return f"rate_limit:filter:{user_id}:{start_from}"
+
+    def _check_rate(
+        self, user_id: str
+    ) -> Tuple[bool, Optional[datetime.datetime], int]:
         # init time
-        now = time.time()
+        now = datetime.datetime.now(tz=pytz.timezone(self.valves.timezone))
 
-        # init user request points
-        if user_id not in self.user_map:
-            self.user_map[user_id] = []
+        # check minute
+        minute_now = datetime.datetime(
+            year=now.year,
+            month=now.month,
+            day=now.day,
+            hour=now.hour,
+            minute=now.minute,
+            tzinfo=now.tzinfo,
+        )
+        minute_start_from = minute_now.strftime("%Y%m%d%H%M")
+        minute_key = self._key(user_id, minute_start_from)
+        self._redis.expire(name=minute_key, time=datetime.timedelta(minutes=1))
+        val = self._redis.incrby(name=minute_key, amount=1)
+        if val > self.valves.requests_per_minute:
+            return True, minute_now + datetime.timedelta(minutes=1), val
 
-        # load user requests
-        self.user_map[user_id] = [
-            point
-            for point in self.user_map[user_id]
-            if (
-                (self.valves.requests_per_minute is not None and now - point < 60)
-                or (self.valves.requests_per_hour is not None and now - point < 3600)
-            )
-        ]
-        points = self.user_map[user_id]
+        # check hour
+        hour_now = datetime.datetime(
+            year=now.year,
+            month=now.month,
+            day=now.day,
+            hour=now.hour,
+            tzinfo=now.tzinfo,
+        )
+        hour_start_from = hour_now.strftime("%Y%m%d%H")
+        hour_key = self._key(user_id, hour_start_from)
+        val = self._redis.incrby(name=hour_key, amount=1)
+        self._redis.expire(name=hour_key, time=datetime.timedelta(hours=1))
+        if val > self.valves.requests_per_hour:
+            return True, hour_now + datetime.timedelta(hours=1), val
 
-        # rpm
-        last_minute_reqs = [point for point in points if now - point < 60]
-        if len(last_minute_reqs) >= self.valves.requests_per_minute:
-            return True, int(60 - (time.time() - min(last_minute_reqs))), len(last_minute_reqs)
-
-        # rph
-        last_hour_reqs = [point for point in points if now - point < 3600]
-        if len(last_hour_reqs) >= self.valves.requests_per_hour:
-            return True, int(3600 - (time.time() - min(last_hour_reqs))), len(last_hour_reqs)
-
-        return False, None, len(points)
-
-    def _log_request(self, user_id: str):
-        self.user_map[user_id].append(time.time())
+        return False, None, 0
 
     def inlet(
         self,
@@ -74,17 +95,16 @@ class Filter:
     ) -> dict:
 
         __user__ = __user__ or {}
-        if not __user__:
-            return body
-
         user_id = __user__.get("id", "unknown_user")
 
-        rate_limited, wait_time, request_count = self._check_rate(user_id)
+        rate_limited, future_time, request_count = self._check_rate(user_id)
         if rate_limited:
-            future_time = datetime.now().astimezone(timezone(self.valves.timezone)) + timedelta(seconds=wait_time)
             future_time_str = future_time.strftime("%H:%M %Z")
-            logger.info("[rate_limit] %s %d %s", user_id, request_count, future_time_str)
-            raise Exception(f"too many requests ({request_count}), please wait until {future_time_str}")
+            logger.info(
+                "[rate_limit] %s %d %s", user_id, request_count, future_time_str
+            )
+            raise Exception(
+                f"请求频率过高({request_count})，请等待至{future_time_str}后再试"
+            )
 
-        self._log_request(user_id)
         return body
