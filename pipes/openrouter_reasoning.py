@@ -20,7 +20,7 @@ logger.setLevel("INFO")
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(default="", description="openrouter base url")
+        base_url: str = Field(default="https://openrouter.ai/api/v1", description="openrouter base url")
         api_key: str = Field(default="", description="openrouter api key")
         request_timeout: int = Field(default=60, description="request timeout")
 
@@ -28,14 +28,14 @@ class Pipe:
         self.valves = self.Valves()
 
     def pipes(self):
-        models = ["o-claude-3.7-sonnet-thinking"]
-        return [{"id": f"reasoning/{model}", "name": f"reasoning/{model}"} for model in models]
+        models = ["anthropic/claude-3.7-sonnet"]
+        return [{"id": model, "name": model} for model in models]
 
     async def pipe(self, body: dict, __event_emitter__: callable):
         modified_body = copy.deepcopy(body)
         if "model" in modified_body:
-            modified_body["model"] = modified_body["model"].split(".", 1)[-1].replace("reasoning/", "", 1)
-        modified_body["include_reasoning"] = True
+            modified_body["model"] = modified_body["model"].split(".", 1)[-1]
+        modified_body["reasoning"] = {"exclude": False}
 
         headers = {
             "Authorization": f"Bearer {self.valves.api_key}",
