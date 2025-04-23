@@ -14,10 +14,9 @@ from typing import Dict, List, Optional, Tuple
 
 import pytz
 import redis
-from pydantic import BaseModel, Field
-
-from open_webui.env import REDIS_URL, REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT
+from open_webui.env import REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT, REDIS_URL
 from open_webui.utils.redis import get_redis_connection, get_sentinels_from_env
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -26,13 +25,10 @@ logger.setLevel(logging.INFO)
 class Filter:
     class Valves(BaseModel):
         priority: int = Field(default=0, description="filter priority")
-        requests_per_minute: Optional[int] = Field(
-            default=10, description="maximum requests allowed per minute"
-        )
-        requests_per_hour: Optional[int] = Field(
-            default=120, description="maximum requests allowed per hour"
-        )
-        timezone: str = Field(default="Asia/Shanghai", description="timezone")
+        requests_per_minute: Optional[int] = Field(default=10, description="每分钟最大请求数")
+        requests_per_hour: Optional[int] = Field(default=120, description="每小时最大请求数")
+        user_whitelist: Optional[str] = Field(default="", description="用户白名单")
+        timezone: str = Field(default="Asia/Shanghai", description="时区")
 
     def __init__(self):
         self.file_handler = False
@@ -40,18 +36,14 @@ class Filter:
         self.user_map: Dict[str, List[float]] = {}
         self._redis: redis.Redis = get_redis_connection(
             redis_url=REDIS_URL,
-            redis_sentinels=get_sentinels_from_env(
-                REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT
-            ),
+            redis_sentinels=get_sentinels_from_env(REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT),
             decode_responses=True,
         )
 
     def _key(self, user_id: str, start_from: str) -> str:
         return f"rate_limit:filter:{user_id}:{start_from}"
 
-    def _check_rate(
-        self, user_id: str
-    ) -> Tuple[bool, Optional[datetime.datetime], int]:
+    def _check_rate(self, user_id: str) -> Tuple[bool, Optional[datetime.datetime], int]:
         # init time
         now = datetime.datetime.now(tz=pytz.timezone(self.valves.timezone))
 
@@ -97,14 +89,13 @@ class Filter:
         __user__ = __user__ or {}
         user_id = __user__.get("id", "unknown_user")
 
+        if user_id in self.valves.user_whitelist.split(","):
+            return body
+
         rate_limited, future_time, request_count = self._check_rate(user_id)
         if rate_limited:
             future_time_str = future_time.strftime("%H:%M %Z")
-            logger.info(
-                "[rate_limit] %s %d %s", user_id, request_count, future_time_str
-            )
-            raise Exception(
-                f"请求频率过高({request_count})，请等待至{future_time_str}后再试"
-            )
+            logger.info("[rate_limit] %s %d %s", user_id, request_count, future_time_str)
+            raise Exception(f"请求频率过高({request_count})，请等待至{future_time_str}后再试")
 
         return body
