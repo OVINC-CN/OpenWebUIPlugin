@@ -9,19 +9,21 @@ licence: MIT
 
 import base64
 import io
+import json
 import logging
+import time
 import uuid
-from typing import AsyncGenerator, AsyncIterable, List
+from typing import AsyncIterable, List, Optional
 
+import httpx
 from fastapi import Request, UploadFile
-from httpx import Client
 from open_webui.env import SRC_LOG_LEVELS
 from open_webui.models.users import UserModel, Users
 from open_webui.routers.files import get_file_content_by_id, upload_file
-from openai import OpenAI
 from openai._types import FileTypes
 from pydantic import BaseModel, Field
 from starlette.datastructures import Headers
+from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
@@ -46,19 +48,75 @@ class Pipe:
         body: dict,
         __user__: dict,
         __request__: Request,
-    ) -> AsyncGenerator:
+    ) -> StreamingResponse:
+        return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
+
+    async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         user = Users.get_user_by_id(__user__["id"])
         try:
-            async for line in self._pipe(body=body, user=user, __request__=__request__):
-                yield line
+            model, url, payload = await self._build_payload(user=user, body=body)
+
+            # call client
+            async with httpx.AsyncClient(
+                base_url=self.valves.base_url,
+                headers={"Authorization": f"Bearer {self.valves.api_key}"},
+                proxy=self.valves.proxy,
+                trust_env=True,
+                timeout=self.valves.timeout,
+            ) as client:
+                response = await client.post(url=url, json=payload)
+                response.raise_for_status()
+                response = response.json()
+
+                # upload image
+                results = []
+                for item in response["data"]:
+                    results.append(
+                        self._upload_image(
+                            __request__=__request__,
+                            user=user,
+                            image_data=item["b64_json"],
+                            mime_type="image/png",
+                        )
+                    )
+
+                # format response data
+                usage = response.get("usage", None)
+
+                # response
+                content = "\n\n".join(results)
+                if body.get("stream"):
+                    yield self._format_data(is_stream=True, model=model, content=content, usage=None)
+                    yield self._format_data(is_stream=True, model=model, content=None, usage=usage)
+                else:
+                    yield self._format_data(is_stream=False, model=model, content=content, usage=usage)
         except Exception as err:
             logger.exception("[OpenAIImagePipe] failed of %s", err)
-            raise err
+            yield self._format_data(is_stream=False, model="", content=str(err), usage=None)
 
-    async def _pipe(self, body: dict, user: UserModel, __request__: Request) -> AsyncIterable:
+    def _upload_image(self, __request__: Request, user: UserModel, image_data: str, mime_type: str) -> str:
+        file_item = upload_file(
+            request=__request__,
+            file=UploadFile(
+                file=io.BytesIO(base64.b64decode(image_data)),
+                filename=f"generated-image-{uuid.uuid4().hex}.png",
+                headers=Headers({"content-type": mime_type}),
+            ),
+            user=user,
+            file_metadata={"mime_type": mime_type},
+        )
+        image_url = __request__.app.url_path_for("get_file_content_by_id", id=file_item.id)
+        return f"![openai-image-{file_item.id}]({image_url})"
+
+    async def _get_image_content(self, user: UserModel, markdown_string: str) -> FileTypes:
+        file_id = markdown_string.split("![openai-image-")[1].split("]")[0]
+        file_response = await get_file_content_by_id(id=file_id, user=user)
+        return open(file_response.path, "rb")
+
+    async def _build_payload(self, user: UserModel, body: dict) -> (str, dict):
         # payload
         model = body["model"].split(".", 1)[1]
-        payload = {"image": None, "prompt": ""}
+        payload = {"image": None, "prompt": "", "n": self.valves.num_of_images, "model": model}
 
         # read messages
         messages = body["messages"]
@@ -100,62 +158,35 @@ class Pipe:
             else:
                 raise TypeError("message content invalid")
 
-        # call client
-        client = OpenAI(
-            base_url=self.valves.base_url,
-            api_key=self.valves.api_key,
-            http_client=Client(proxy=self.valves.proxy, trust_env=True),
-        )
+        # init payload
         if payload["image"]:
-            response = client.images.edit(
-                image=payload["image"],
-                prompt=payload["prompt"],
-                model=model,
-                n=self.valves.num_of_images,
-                timeout=self.valves.timeout,
-            )
+            url = "/images/edits"
         else:
-            response = client.images.generate(
-                prompt=payload["prompt"],
-                model=model,
-                n=self.valves.num_of_images,
-            )
+            payload.pop("image", None)
+            url = "/images/generations"
 
-        results = []
-        for item in response.data:
-            results.append(
-                self._upload_image(
-                    __request__=__request__,
-                    user=user,
-                    image_data=item.b64_json,
-                    mime_type="image/png",
-                )
-            )
+        return model, url, payload
 
-        # format response data
-        usage = getattr(response, "usage", None)
-        if isinstance(usage, BaseModel):
-            usage = usage.model_dump(exclude_none=True)
-
-        # response
-        yield "\n\n".join(results)
-        yield {"usage": usage}
-
-    def _upload_image(self, __request__: Request, user: UserModel, image_data: str, mime_type: str) -> str:
-        file_item = upload_file(
-            request=__request__,
-            file=UploadFile(
-                file=io.BytesIO(base64.b64decode(image_data)),
-                filename=f"generated-image-{uuid.uuid4().hex}.png",
-                headers=Headers({"content-type": mime_type}),
-            ),
-            user=user,
-            file_metadata={"mime_type": mime_type},
-        )
-        image_url = __request__.app.url_path_for("get_file_content_by_id", id=file_item.id)
-        return f"![openai-image-{file_item.id}]({image_url})"
-
-    async def _get_image_content(self, user: UserModel, markdown_string: str) -> FileTypes:
-        file_id = markdown_string.split("![openai-image-")[1].split("]")[0]
-        file_response = await get_file_content_by_id(id=file_id, user=user)
-        return open(file_response.path, "rb")
+    def _format_data(
+        self, is_stream: bool, model: str, content: Optional[str] = "", usage: Optional[dict] = None
+    ) -> str:
+        data = {
+            "id": f"chat.{uuid.uuid4().hex}",
+            "object": "chat.completion.chunk",
+            "choices": [],
+            "created": int(time.time()),
+            "model": model,
+        }
+        if content:
+            data["choices"] = [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "delta" if is_stream else "message": {
+                        "content": content,
+                    },
+                }
+            ]
+        if usage:
+            data["usage"] = usage
+        return f"data: {json.dumps(data)}\n\n"
