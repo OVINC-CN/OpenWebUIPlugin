@@ -13,7 +13,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, List, Optional
+from typing import AsyncIterable, List, Literal, Optional
 
 import httpx
 from fastapi import Request, UploadFile
@@ -34,6 +34,9 @@ class Pipe:
         base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
         num_of_images: int = Field(default=1, description="number of images", ge=1, le=10)
+        quality: Literal["low", "medium", "high", "auto"] = Field(
+            default="auto", description="the quality of the image that will be generated"
+        )
         timeout: int = Field(default=600, description="image timeout")
         proxy: str = Field(default="", description="proxy url")
 
@@ -118,7 +121,13 @@ class Pipe:
     async def _build_payload(self, user: UserModel, body: dict) -> (str, dict):
         # payload
         model = body["model"].split(".", 1)[1]
-        data = {"image": None, "prompt": "", "n": self.valves.num_of_images, "model": model}
+        data = {
+            "image": None,
+            "prompt": "",
+            "n": self.valves.num_of_images,
+            "model": model,
+            "quality": self.valves.quality,
+        }
 
         # read messages
         messages = body["messages"]
