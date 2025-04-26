@@ -54,8 +54,7 @@ class Pipe:
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         user = Users.get_user_by_id(__user__["id"])
         try:
-            model, url, payload = await self._build_payload(user=user, body=body)
-
+            model, payload = await self._build_payload(user=user, body=body)
             # call client
             async with httpx.AsyncClient(
                 base_url=self.valves.base_url,
@@ -64,8 +63,11 @@ class Pipe:
                 trust_env=True,
                 timeout=self.valves.timeout,
             ) as client:
-                response = await client.post(url=url, json=payload)
-                response.raise_for_status()
+                response = await client.post(**payload)
+                if response.status_code != 200:
+                    raise httpx.HTTPStatusError(
+                        message=response.content.decode(), request=response.request, response=response
+                    )
                 response = response.json()
 
                 # upload image
@@ -92,7 +94,7 @@ class Pipe:
                     yield self._format_data(is_stream=False, model=model, content=content, usage=usage)
         except Exception as err:
             logger.exception("[OpenAIImagePipe] failed of %s", err)
-            yield self._format_data(is_stream=False, model="", content=str(err), usage=None)
+            yield self._format_data(is_stream=False, content=str(err))
 
     def _upload_image(self, __request__: Request, user: UserModel, image_data: str, mime_type: str) -> str:
         file_item = upload_file(
@@ -116,7 +118,7 @@ class Pipe:
     async def _build_payload(self, user: UserModel, body: dict) -> (str, dict):
         # payload
         model = body["model"].split(".", 1)[1]
-        payload = {"image": None, "prompt": "", "n": self.valves.num_of_images, "model": model}
+        data = {"image": None, "prompt": "", "n": self.valves.num_of_images, "model": model}
 
         # read messages
         messages = body["messages"]
@@ -134,14 +136,14 @@ class Pipe:
                     if not item:
                         continue
                     if item.startswith("![openai-image-"):
-                        payload["image"] = await self._get_image_content(user, item)
+                        data["image"] = await self._get_image_content(user, item)
                         continue
-                    payload["prompt"] += f"\n{message_content}"
+                    data["prompt"] += f"\n{message_content}"
             # list content
             elif isinstance(message_content, list):
                 for content in message_content:
                     if content["type"] == "text":
-                        payload["prompt"] += f"\n{content['text']}"
+                        data["prompt"] += f"\n{content['text']}"
                         continue
                     if content["type"] == "image_url":
                         image_url = content["image_url"]["url"]
@@ -149,7 +151,7 @@ class Pipe:
                         mime_type = header.split(";")[0].split(":")[1]
                         file_name = f"{uuid.uuid4().hex}.{mime_type.split('/')[-1]}"
                         image_bytes = base64.b64decode(encoded.encode())
-                        payload["image"] = (
+                        data["image"] = (
                             file_name,
                             image_bytes,
                             mime_type,
@@ -159,16 +161,21 @@ class Pipe:
                 raise TypeError("message content invalid")
 
         # init payload
-        if payload["image"]:
-            url = "/images/edits"
+        if data["image"]:
+            files = data.pop("image")
+            payload = {"url": "/images/edits", "files": {"image": files}, "data": data}
         else:
-            payload.pop("image", None)
-            url = "/images/generations"
+            data.pop("image", None)
+            payload = {"url": "/images/generations", "json": data}
 
-        return model, url, payload
+        return model, payload
 
     def _format_data(
-        self, is_stream: bool, model: str, content: Optional[str] = "", usage: Optional[dict] = None
+        self,
+        is_stream: bool,
+        model: Optional[str] = "",
+        content: Optional[str] = "",
+        usage: Optional[dict] = None,
     ) -> str:
         data = {
             "id": f"chat.{uuid.uuid4().hex}",
