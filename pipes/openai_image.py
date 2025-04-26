@@ -37,6 +37,7 @@ class Pipe:
         quality: Literal["low", "medium", "high", "auto"] = Field(
             default="auto", description="the quality of the image that will be generated"
         )
+        size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(default="auto", description="image size")
         timeout: int = Field(default=600, description="image timeout")
         proxy: str = Field(default="", description="proxy url")
 
@@ -127,6 +128,7 @@ class Pipe:
             "n": self.valves.num_of_images,
             "model": model,
             "quality": self.valves.quality,
+            "size": self.valves.size,
         }
 
         # read messages
