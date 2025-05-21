@@ -3,7 +3,7 @@ title: OpenAI Image
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -123,7 +123,7 @@ class Pipe:
         # payload
         model = body["model"].split(".", 1)[1]
         data = {
-            "image": None,
+            "image": [],
             "prompt": "",
             "n": self.valves.num_of_images,
             "model": model,
@@ -147,7 +147,7 @@ class Pipe:
                     if not item:
                         continue
                     if item.startswith("![openai-image-"):
-                        data["image"] = await self._get_image_content(user, item)
+                        data["image"].append(await self._get_image_content(user, item))
                         continue
                     data["prompt"] += f"\n{message_content}"
             # list content
@@ -162,11 +162,13 @@ class Pipe:
                         mime_type = header.split(";")[0].split(":")[1]
                         file_name = f"{uuid.uuid4().hex}.{mime_type.split('/')[-1]}"
                         image_bytes = base64.b64decode(encoded.encode())
-                        data["image"] = (
-                            file_name,
-                            image_bytes,
-                            mime_type,
-                            {"content-type": mime_type},
+                        data["image"].append(
+                            (
+                                file_name,
+                                image_bytes,
+                                mime_type,
+                                {"content-type": mime_type},
+                            )
                         )
             else:
                 raise TypeError("message content invalid")
@@ -174,7 +176,7 @@ class Pipe:
         # init payload
         if data["image"]:
             files = data.pop("image")
-            payload = {"url": "/images/edits", "files": {"image": files}, "data": data}
+            payload = {"url": "/images/edits", "files": [("image[]", file) for file in files], "data": data}
         else:
             data.pop("image", None)
             payload = {"url": "/images/generations", "json": data}
