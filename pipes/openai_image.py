@@ -3,7 +3,7 @@ title: OpenAI Image
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -63,7 +63,7 @@ class Pipe:
             async with httpx.AsyncClient(
                 base_url=self.valves.base_url,
                 headers={"Authorization": f"Bearer {self.valves.api_key}"},
-                proxy=self.valves.proxy,
+                proxy=self.valves.proxy or None,
                 trust_env=True,
                 timeout=self.valves.timeout,
             ) as client:
@@ -109,7 +109,7 @@ class Pipe:
                 headers=Headers({"content-type": mime_type}),
             ),
             user=user,
-            file_metadata={"mime_type": mime_type},
+            metadata={"mime_type": mime_type},
         )
         image_url = __request__.app.url_path_for("get_file_content_by_id", id=file_item.id)
         return f"![openai-image-{file_item.id}]({image_url})"
