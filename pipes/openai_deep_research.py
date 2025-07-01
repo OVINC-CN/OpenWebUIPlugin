@@ -3,7 +3,7 @@ title: OpenAI Deep Research API
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -28,7 +28,8 @@ class Pipe:
         base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
         reasoning_effort: Literal["medium", "high"] = Field(default="medium", description="reasoning effort")
-        timeout: int = Field(default=600, description="image timeout")
+        enable_code_interpreter: bool = Field(default=True, description="code interpreter")
+        timeout: int = Field(default=600, description="timeout")
         proxy: str = Field(default="", description="proxy url")
 
     def __init__(self):
@@ -55,15 +56,23 @@ class Pipe:
                 timeout=self.valves.timeout,
             ) as client:
                 async with client.stream(**payload) as response:
+                    if response.status_code != 200:
+                        text = ""
+                        async for line in response.aiter_lines():
+                            text += line
+                        logger.error("response invalid with %d: %s", response.status_code, text)
+                        response.raise_for_status()
+                        return
                     async for line in response.aiter_lines():
                         line = line.strip()
                         if not line:
                             continue
-                        if line.startswith("event:"):
+                        if line.startswith("event:") or not line.startswith("data:"):
                             continue
                         if line.startswith("data: "):
                             line = line[6:]
-                        line = json.loads(line)
+                        if isinstance(line, str):
+                            line = json.loads(line)
                         match line.get("type"):
                             case "response.output_text.delta":
                                 yield self._format_data(model=model, content=line["delta"])
@@ -92,10 +101,13 @@ class Pipe:
 
     async def _build_payload(self, body: dict) -> (str, dict):
         model = body["model"].split(".", 1)[1]
+        tools = [{"type": "web_search_preview"}]
+        if self.valves.enable_code_interpreter:
+            tools.append({"type": "code_interpreter", "container": {"type": "auto"}})
         data = {
             "model": model,
             "input": body["messages"],
-            "tools": [{"type": "web_search_preview"}, {"type": "code_interpreter", "container": {"type": "auto"}}],
+            "tools": tools,
             "reasoning": {"effort": body.get("reasoning_effort") or self.valves.reasoning_effort},
             "stream": True,
         }
