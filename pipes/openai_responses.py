@@ -1,9 +1,9 @@
 """
-title: OpenAI Deep Research API
+title: OpenAI Responses
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.1
 licence: MIT
 """
 
@@ -27,9 +27,8 @@ class Pipe:
     class Valves(BaseModel):
         base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
-        reasoning_effort: Literal["medium", "high"] = Field(default="medium", description="reasoning effort")
+        reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium", description="reasoning effort")
         summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
-        enable_code_interpreter: bool = Field(default=True, description="code interpreter")
         timeout: int = Field(default=600, description="timeout")
         proxy: str = Field(default="", description="proxy url")
 
@@ -38,8 +37,7 @@ class Pipe:
 
     def pipes(self):
         return [
-            {"id": "o3-deep-research", "name": "o3-deep-research"},
-            {"id": "o4-mini-deep-research", "name": "o4-mini-deep-research"},
+            {"id": "o3-pro", "name": "o3-pro"},
         ]
 
     async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
@@ -82,6 +80,7 @@ class Pipe:
                             case "response.output_text.delta":
                                 if is_thinking:
                                     is_thinking = False
+                                    yield self._format_data(model=model, content="</think>")
                                 yield self._format_data(model=model, content=line["delta"])
                             case "response.completed":
                                 yield self._format_data(
@@ -108,13 +107,9 @@ class Pipe:
 
     async def _build_payload(self, body: dict) -> (str, dict):
         model = body["model"].split(".", 1)[1]
-        tools = [{"type": "web_search_preview"}]
-        if self.valves.enable_code_interpreter:
-            tools.append({"type": "code_interpreter", "container": {"type": "auto"}})
         data = {
             "model": model,
             "input": body["messages"],
-            "tools": tools,
             "reasoning": {
                 "effort": body.get("reasoning_effort") or self.valves.reasoning_effort,
                 "summary": body.get("summary") or self.valves.summary,
