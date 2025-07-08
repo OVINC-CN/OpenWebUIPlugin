@@ -82,6 +82,7 @@ class Pipe:
                             case "response.output_text.delta":
                                 if is_thinking:
                                     is_thinking = False
+                                    yield self._format_data(model=model, content="</think>")
                                 yield self._format_data(model=model, content=line["delta"])
                             case "response.completed":
                                 yield self._format_data(
