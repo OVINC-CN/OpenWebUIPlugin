@@ -113,7 +113,7 @@ class Pipe:
         for message in body["messages"]:
             if isinstance(message["content"], str):
                 messages.append({"content": message["content"], "role": message["role"]})
-            if isinstance(message["content"], list):
+            elif isinstance(message["content"], list):
                 message = {"role": message["role"], "content": []}
                 for item in message["content"]:
                     if item["type"] == "text":
