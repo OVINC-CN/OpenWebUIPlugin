@@ -139,7 +139,7 @@ class Pipe:
             tools.append({"type": "code_interpreter", "container": {"type": "auto"}})
         data = {
             "model": model,
-            "input": body["messages"],
+            "input": messages,
             "tools": tools,
             "reasoning": {
                 "effort": body.get("reasoning_effort") or self.valves.reasoning_effort,
