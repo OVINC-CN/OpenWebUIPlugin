@@ -3,7 +3,7 @@ title: OpenAI Deep Research API
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.3
+version: 0.0.4
 licence: MIT
 """
 
@@ -108,6 +108,31 @@ class Pipe:
             yield self._format_data(model=model, content=str(err), if_finished=True)
 
     async def _build_payload(self, body: dict) -> (str, dict):
+        # build messages
+        messages = []
+        for message in body["messages"]:
+            if isinstance(message["content"], str):
+                messages.append({"content": message["content"], "role": message["role"]})
+            if isinstance(message["content"], list):
+                message = {"role": message["role"], "content": []}
+                for item in message["content"]:
+                    if item["type"] == "text":
+                        message["content"].append({"type": "input_text", "text": item["text"]})
+                    elif item["type"] == "image_url":
+                        message["content"].append(
+                            {
+                                "detail": "auto",
+                                "type": "input_image",
+                                "image_url": item["image_url"]["url"],
+                            }
+                        )
+                    else:
+                        raise TypeError("Invalid message content type %s", item["type"])
+                messages.append(message)
+            else:
+                raise TypeError("Invalid message content type %s", type(message["content"]))
+
+        # build body
         model = body["model"].split(".", 1)[1]
         tools = [{"type": "web_search_preview"}]
         if self.valves.enable_code_interpreter:
