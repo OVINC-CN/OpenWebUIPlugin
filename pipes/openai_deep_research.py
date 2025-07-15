@@ -114,21 +114,20 @@ class Pipe:
             if isinstance(message["content"], str):
                 messages.append({"content": message["content"], "role": message["role"]})
             elif isinstance(message["content"], list):
-                message = {"role": message["role"], "content": []}
+                _message = {"role": message["role"], "content": []}
                 for item in message["content"]:
                     if item["type"] == "text":
-                        message["content"].append({"type": "input_text", "text": item["text"]})
+                        _message["content"].append({"type": "input_text", "text": item["text"]})
                     elif item["type"] == "image_url":
-                        message["content"].append(
+                        _message["content"].append(
                             {
-                                "detail": "auto",
                                 "type": "input_image",
                                 "image_url": item["image_url"]["url"],
                             }
                         )
                     else:
                         raise TypeError("Invalid message content type %s", item["type"])
-                messages.append(message)
+                messages.append(_message)
             else:
                 raise TypeError("Invalid message content type %s", type(message["content"]))
 
