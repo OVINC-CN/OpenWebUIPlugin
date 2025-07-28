@@ -63,12 +63,12 @@ class Filter:
         prompt_tokens = usage.get("prompt_tokens", 0)
         completions_tokens = usage.get("completion_tokens", 0)
         total_cost = usage.get("total_cost", 0)
-        total_cost = "< 0.01" if total_cost < 0.01 else "%.2f" % total_cost
+        total_cost = "< ¥0.01" if total_cost < 0.01 else "¥%.2f" % total_cost
 
         # log usage
         description = (
             "Tokens: %(prompt_tokens)d + %(completions_tokens)d | "
-            "Cost: ¥%(total_cost)s | "
+            "Cost: %(total_cost)s | "
             "Duration: %(total_time)s | "
             "TPS: %(tps)d"
         ) % {
