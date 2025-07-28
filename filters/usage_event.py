@@ -68,7 +68,7 @@ class Filter:
         # log usage
         description = (
             "Tokens: %(prompt_tokens)d + %(completions_tokens)d | "
-            "Cost: %(total_cost)s | "
+            "Cost: ¥%(total_cost)s | "
             "Duration: %(total_time)s | "
             "TPS: %(tps)d"
         ) % {
