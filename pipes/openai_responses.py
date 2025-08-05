@@ -3,7 +3,7 @@ title: OpenAI Responses
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -31,14 +31,13 @@ class Pipe:
         summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
         timeout: int = Field(default=600, description="timeout")
         proxy: str = Field(default="", description="proxy url")
+        models: str = Field(default="o3-pro", description="available models, comma separated")
 
     def __init__(self):
         self.valves = self.Valves()
 
     def pipes(self):
-        return [
-            {"id": "o3-pro", "name": "o3-pro"},
-        ]
+        return [{"id": model, "name": model} for model in self.valves.models.split(",")]
 
     async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
         return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
@@ -140,6 +139,9 @@ class Pipe:
             },
             "stream": True,
         }
+        tools = body.get("tools", [])
+        if tools:
+            data["tools"] = tools
         payload = {"method": "POST", "url": "/responses", "json": data}
         return model, payload
 

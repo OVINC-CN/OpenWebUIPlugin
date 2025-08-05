@@ -1,5 +1,5 @@
 """
-title: OpenAI Responses Web Search
+title: OpenAI Responses Non-Thinking
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
@@ -11,7 +11,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Literal, Optional
+from typing import AsyncIterable, Optional
 
 import httpx
 from fastapi import Request
@@ -29,14 +29,13 @@ class Pipe:
         api_key: str = Field(default="", description="api key")
         timeout: int = Field(default=600, description="timeout")
         proxy: str = Field(default="", description="proxy url")
+        models: str = Field(default="gpt-4.1", description="available models, comma separated")
 
     def __init__(self):
         self.valves = self.Valves()
 
     def pipes(self):
-        return [
-            {"id": "gpt-4.1", "name": "gpt-4.1"},
-        ]
+        return [{"id": model, "name": model} for model in self.valves.models.split(",")]
 
     async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
         return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
@@ -128,6 +127,9 @@ class Pipe:
             "tools": [{"type": "web_search_preview"}],
             "stream": True,
         }
+        tools = body.get("tools", [])
+        if tools:
+            data["tools"] = tools
         payload = {"method": "POST", "url": "/responses", "json": data}
         return model, payload
 
