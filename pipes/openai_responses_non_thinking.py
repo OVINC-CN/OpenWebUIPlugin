@@ -124,7 +124,6 @@ class Pipe:
         data = {
             "model": model,
             "input": messages,
-            "tools": [{"type": "web_search_preview"}],
             "stream": True,
         }
         tools = body.get("tools", [])
