@@ -3,7 +3,7 @@ title: OpenAI Responses
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.3
+version: 0.0.4
 licence: MIT
 """
 
@@ -27,10 +27,13 @@ class Pipe:
     class Valves(BaseModel):
         base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
-        reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium", description="reasoning effort")
+        enable_reasoning: bool = Field(default=True, description="enable reasoning")
+        reasoning_effort: Literal["minimal", "low", "medium", "high"] = Field(
+            default="medium", description="reasoning effort"
+        )
         summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
         timeout: int = Field(default=600, description="timeout")
-        proxy: str = Field(default="", description="proxy url")
+        proxy: Optional[str] = Field(default="", description="proxy url")
         models: str = Field(default="o3-pro", description="available models, comma separated")
 
     def __init__(self):
@@ -61,7 +64,7 @@ class Pipe:
                         logger.error("response invalid with %d: %s", response.status_code, text)
                         response.raise_for_status()
                         return
-                    is_thinking = True
+                    is_thinking = True if self.valves.enable_reasoning else False
                     yield self._format_data(model=model, content="<think>")
                     async for line in response.aiter_lines():
                         line = line.strip()
@@ -75,7 +78,8 @@ class Pipe:
                             line = json.loads(line)
                         match line.get("type"):
                             case "response.reasoning_summary_text.delta":
-                                yield self._format_data(model=model, content=line["delta"])
+                                if self.valves.enable_reasoning:
+                                    yield self._format_data(model=model, content=line["delta"])
                             case "response.output_text.delta":
                                 if is_thinking:
                                     is_thinking = False
@@ -139,9 +143,10 @@ class Pipe:
             },
             "stream": True,
         }
-        tools = body.get("tools", [])
-        if tools:
-            data["tools"] = tools
+        for key, val in body.items():
+            if key in ["messages"] or key in data:
+                continue
+            data[key] = val
         payload = {"method": "POST", "url": "/responses", "json": data}
         return model, payload
 
