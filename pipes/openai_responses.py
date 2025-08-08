@@ -64,8 +64,9 @@ class Pipe:
                         logger.error("response invalid with %d: %s", response.status_code, text)
                         response.raise_for_status()
                         return
-                    is_thinking = True if self.valves.enable_reasoning else False
-                    yield self._format_data(model=model, content="<think>")
+                    is_thinking = self.valves.enable_reasoning
+                    if is_thinking:
+                        yield self._format_data(model=model, content="<think>")
                     async for line in response.aiter_lines():
                         line = line.strip()
                         if not line:
@@ -78,7 +79,7 @@ class Pipe:
                             line = json.loads(line)
                         match line.get("type"):
                             case "response.reasoning_summary_text.delta":
-                                if self.valves.enable_reasoning:
+                                if is_thinking:
                                     yield self._format_data(model=model, content=line["delta"])
                             case "response.output_text.delta":
                                 if is_thinking:
