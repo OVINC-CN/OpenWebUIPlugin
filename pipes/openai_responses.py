@@ -143,9 +143,16 @@ class Pipe:
                 "summary": body.get("summary") or self.valves.summary,
             },
             "stream": True,
+            "store": False,
         }
+        # max tokens
+        if "max_completion_tokens" in body:
+            data["max_output_tokens"] = body["max_completion_tokens"]
+        elif "max_tokens" in body:
+            data["max_output_tokens"] = body["max_tokens"]
+        # other parameters
         for key, val in body.items():
-            if key in ["messages"] or key in data:
+            if key in ["messages", "max_tokens", "max_completion_tokens"] or key in data:
                 continue
             data[key] = val
         payload = {"method": "POST", "url": "/responses", "json": data}
