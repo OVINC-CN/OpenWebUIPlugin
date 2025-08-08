@@ -3,7 +3,7 @@ title: OpenAI Deep Research API
 author: OVINC CN
 author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.4
+version: 0.0.5
 licence: MIT
 """
 
@@ -146,6 +146,10 @@ class Pipe:
             },
             "stream": True,
         }
+        for key, val in body.items():
+            if key in ["messages"] or key in data:
+                continue
+            data[key] = val
         payload = {"method": "POST", "url": "/responses", "json": data}
         return model, payload
 
