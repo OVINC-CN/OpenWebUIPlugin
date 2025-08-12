@@ -1,7 +1,6 @@
 """
 title: Jina AI Web Scrape
 author: OVINC CN
-author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: Using Jina AI for Web Scrape
 requirements: httpx

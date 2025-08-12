@@ -1,7 +1,6 @@
 """
 title: OpenRouter Web Search
 author: OVINC CN
-author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: OpenRouter Web Search
 version: 0.0.1

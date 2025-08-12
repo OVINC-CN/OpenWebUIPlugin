@@ -1,7 +1,6 @@
 """
 title: OpenAI Image
 author: OVINC CN
-author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 version: 0.0.3
 licence: MIT

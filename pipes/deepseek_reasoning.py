@@ -1,7 +1,6 @@
 """
 title: DeepSeek Reasoning
 author: OVINC CN
-author_url: https://www.ovinc.cn
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 version: 0.0.1
 licence: MIT
