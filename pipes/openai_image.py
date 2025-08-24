@@ -2,7 +2,7 @@
 title: OpenAI Image
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.4
+version: 0.0.5
 licence: MIT
 """
 
@@ -15,7 +15,7 @@ import uuid
 from typing import AsyncIterable, List, Literal, Optional
 
 import httpx
-from fastapi import BackgroundTasks, Request, UploadFile
+from fastapi import Request, UploadFile
 from open_webui.env import SRC_LOG_LEVELS
 from open_webui.models.users import UserModel, Users
 from open_webui.routers.files import get_file_content_by_id, upload_file
@@ -102,7 +102,6 @@ class Pipe:
     def _upload_image(self, __request__: Request, user: UserModel, image_data: str, mime_type: str) -> str:
         file_item = upload_file(
             request=__request__,
-            background_tasks=BackgroundTasks(),
             file=UploadFile(
                 file=io.BytesIO(base64.b64decode(image_data)),
                 filename=f"generated-image-{uuid.uuid4().hex}.png",
