@@ -3,7 +3,7 @@ title: Gemini Image
 description: Image generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -84,17 +84,18 @@ class Pipe:
                         results.append(item.get("finishReason", ""))
                         continue
                     for part in parts:
-                        if "inlineData" not in part:
-                            continue
-                        inline_data = part["inlineData"]
-                        results.append(
-                            self._upload_image(
-                                __request__=__request__,
-                                user=user,
-                                image_data=inline_data["data"],
-                                mime_type=inline_data["mimeType"],
+                        if "text" in part:
+                            results.append(part["text"])
+                        if "inlineData" in part:
+                            inline_data = part["inlineData"]
+                            results.append(
+                                self._upload_image(
+                                    __request__=__request__,
+                                    user=user,
+                                    image_data=inline_data["data"],
+                                    mime_type=inline_data["mimeType"],
+                                )
                             )
-                        )
 
                 # format response data
                 usage_metadata = response.get("usageMetadata", None)
