@@ -85,7 +85,10 @@ class Pipe:
                         continue
                     for part in parts:
                         if "text" in part:
-                            results.append(part["text"])
+                            if part["text"].endswith("`"):
+                                results.append(part["text"][:-1])
+                            else:
+                                results.append(part["text"])
                         if "inlineData" in part:
                             inline_data = part["inlineData"]
                             results.append(
