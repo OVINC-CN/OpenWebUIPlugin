@@ -74,7 +74,6 @@ class Pipe:
 
                 # upload image
                 results = []
-                logger.info("[GeminiImagePipe] responses: %s", response)
                 for item in response["candidates"]:
                     content = item.get("content", {})
                     if not content:
