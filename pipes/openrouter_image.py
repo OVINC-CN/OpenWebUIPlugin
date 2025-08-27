@@ -31,7 +31,7 @@ logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(default="openrouter.ai/api/v1", description="base url")
+        base_url: str = Field(default="https://openrouter.ai/api/v1", description="base url")
         api_key: str = Field(default="", description="api key")
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default="", description="proxy url")
