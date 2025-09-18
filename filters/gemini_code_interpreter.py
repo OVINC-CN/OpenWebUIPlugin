@@ -3,7 +3,7 @@ title: Gemini Code Interpreter
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: Gemini Code Interpreter
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -27,7 +27,7 @@ class Filter:
 
     def inlet(self, body: dict) -> dict:
         if body.get("tools"):
-            body["tools"].append({"type": "function", "function": {"name": "codeExecution"}})
+            body["tools"].append({"code_execution": {}})
         else:
-            body["tools"] = [{"type": "function", "function": {"name": "codeExecution"}}]
+            body["tools"] = [{"code_execution": {}}]
         return body
