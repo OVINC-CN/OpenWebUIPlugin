@@ -105,15 +105,16 @@ class Pipe:
                         # format usage data
                         usage_metadata = line.get("usageMetadata", None)
                         usage = {
-                            "prompt_tokens": usage_metadata.get("promptTokenCount", 0) if usage_metadata else 0,
-                            "completion_tokens": usage_metadata.get("candidatesTokenCount", 0) if usage_metadata else 0,
-                            "total_tokens": usage_metadata.get("totalTokenCount", 0) if usage_metadata else 0,
+                            "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
+                            "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
+                            "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
                             "prompt_token_details": (
-                                usage_metadata.get("promptTokensDetails", []) if usage_metadata else []
+                                usage_metadata.pop("promptTokensDetails", []) if usage_metadata else []
                             ),
-                            "completion_token_details": {
-                                "thinking_tokens": usage_metadata.get("thoughtsTokenCount", 0)
-                            },
+                            "completion_token_details": (
+                                usage_metadata.pop("candidatesTokensDetails", []) if usage_metadata else []
+                            ),
+                            "metadata": usage_metadata or {},
                         }
                         if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
                             usage["completion_tokens"] = usage["total_tokens"] - usage["prompt_tokens"]
