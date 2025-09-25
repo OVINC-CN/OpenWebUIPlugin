@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -95,13 +95,46 @@ class Pipe:
                                 )
                                 continue
                             for part in parts:
+                                # thinking content
                                 if part.get("thought", False):
                                     yield self._format_data(is_stream=True, model=model, content=part["text"])
+                                # no thinking content
                                 else:
+                                    # stop thinking
                                     if is_thinking:
                                         is_thinking = False
                                         yield self._format_data(is_stream=True, model=model, content="</think>")
-                                    yield self._format_data(is_stream=True, model=model, content=part["text"])
+                                    # text content
+                                    if part.get("text"):
+                                        yield self._format_data(is_stream=True, model=model, content=part["text"])
+                                    # code content
+                                    if part.get("executableCode"):
+                                        data = {
+                                            "event": {
+                                                "type": "status",
+                                                "data": {
+                                                    "description": (
+                                                        f"executableCode {part['executableCode'].get('language', '')}"
+                                                    ),
+                                                    "done": False,
+                                                },
+                                            }
+                                        }
+                                        yield f"data: {json.dumps(data)}\n\n"
+                                    if part.get("codeExecutionResult"):
+                                        data = {
+                                            "event": {
+                                                "type": "status",
+                                                "data": {
+                                                    "description": (
+                                                        "codeExecutionResult "
+                                                        f"{part['codeExecutionResult'].get('outcome', '')}"
+                                                    ),
+                                                    "done": True,
+                                                },
+                                            }
+                                        }
+                                        yield f"data: {json.dumps(data)}\n\n"
                         # format usage data
                         usage_metadata = line.get("usageMetadata", None)
                         usage = {
