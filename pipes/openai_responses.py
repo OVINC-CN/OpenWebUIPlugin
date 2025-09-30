@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.4
+version: 0.0.5
 licence: MIT
 """
 
@@ -10,7 +10,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Literal, Optional
+from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import Request
@@ -31,15 +31,16 @@ class Pipe:
             default="medium", description="reasoning effort"
         )
         summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
+        allow_params: Optional[str] = Field(default="", description="allowed parameters, comma separated")
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default="", description="proxy url")
-        models: str = Field(default="o3-pro", description="available models, comma separated")
+        models: str = Field(default="gpt-5", description="available models, comma separated")
 
     def __init__(self):
         self.valves = self.Valves()
 
     def pipes(self):
-        return [{"id": model, "name": model} for model in self.valves.models.split(",")]
+        return [{"id": model, "name": model} for model in self.valves.models.split(",") if model]
 
     async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
         return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
@@ -108,7 +109,7 @@ class Pipe:
             logger.exception("[OpenAIImagePipe] failed of %s", err)
             yield self._format_data(model=model, content=str(err), if_finished=True)
 
-    async def _build_payload(self, body: dict) -> (str, dict):
+    async def _build_payload(self, body: dict) -> Tuple[str, dict]:
         # build messages
         messages = []
         for message in body["messages"]:
@@ -150,10 +151,10 @@ class Pipe:
         elif "max_tokens" in body:
             data["max_output_tokens"] = body["max_tokens"]
         # other parameters
+        allowed_params = [k for k in self.valves.allow_params.split(",") if k]
         for key, val in body.items():
-            if key in ["messages", "max_tokens", "max_completion_tokens"] or key in data:
-                continue
-            data[key] = val
+            if key in allowed_params:
+                data[key] = val
         payload = {"method": "POST", "url": "/responses", "json": data}
         return model, payload
 
