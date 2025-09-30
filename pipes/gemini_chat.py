@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -11,7 +11,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Optional, Tuple
+from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import Request
@@ -30,7 +30,15 @@ class Pipe:
             description="base url",
         )
         api_key: str = Field(default="", description="api key")
-        thinking_budget: int = Field(default=-1, description="thinking budget")
+        allow_params: Optional[str] = Field(default="", description="allowed parameters, comma separated")
+        enable_reasoning: bool = Field(default=True, description="enable reasoning")
+        reasoning_effort: Literal["auto", "low", "medium", "high"] = Field(
+            default="auto", description="reasoning effort"
+        )
+        reasoning_effort_map: str = Field(
+            default=json.dumps({"low": 512, "medium": 10240, "high": 24576}),
+            description="reasoning effort to thinking budget",
+        )
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default=None, description="proxy url")
         models: str = Field(default="gemini-2.5-pro", description="available models, comma separated")
@@ -68,8 +76,9 @@ class Pipe:
                         response.raise_for_status()
                         return
                     # parse resp
-                    is_thinking = True
-                    yield self._format_data(is_stream=True, model=model, content="<think>")
+                    is_thinking = self.valves.enable_reasoning
+                    if is_thinking:
+                        yield self._format_data(is_stream=True, model=model, content="<think>")
                     async for line in response.aiter_lines():
                         # format stream data
                         line = line.strip()
@@ -97,7 +106,8 @@ class Pipe:
                             for part in parts:
                                 # thinking content
                                 if part.get("thought", False):
-                                    yield self._format_data(is_stream=True, model=model, content=part["text"])
+                                    if is_thinking:
+                                        yield self._format_data(is_stream=True, model=model, content=part["text"])
                                 # no thinking content
                                 else:
                                     # stop thinking
@@ -198,16 +208,29 @@ class Pipe:
                 content["role"] = "model"
             contents.append(content)
 
+        # get thinking budget
+        reasoning_effort = body.get("reasoning_effort") or self.valves.reasoning_effort
+        if reasoning_effort == "auto":
+            thinking_budget = -1
+        else:
+            thinking_budget = json.loads(self.valves.reasoning_effort_map)[reasoning_effort]
+
+        # other parameters
+        extra_data = {}
+        allowed_params = [k for k in self.valves.allow_params.split(",") if k]
+        for key, val in body.items():
+            if key in allowed_params:
+                extra_data[key] = val
+
         # init payload
         payload = {
             "method": "POST",
             "url": f"{self.valves.base_url}/{model}:streamGenerateContent?alt=sse",
             "json": {
+                **extra_data,
                 **({"system_instruction": system_instruction} if system_instruction["parts"] else {}),
                 "contents": contents,
-                "generationConfig": {
-                    "thinkingConfig": {"thinkingBudget": self.valves.thinking_budget, "includeThoughts": True}
-                },
+                "generationConfig": {"thinkingConfig": {"thinkingBudget": thinking_budget, "includeThoughts": True}},
             },
         }
 
