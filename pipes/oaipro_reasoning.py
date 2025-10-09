@@ -104,7 +104,7 @@ class Pipe:
                         usage = line.get("usage") or {}
                         if usage:
                             yield self._format_data(model=model, usage=usage)
-                        # finishe
+                        # finish
                         finish_reason = choice.get("finish_reason") or ""
                         if finish_reason:
                             yield self._format_data(model=model, if_finished=True)
