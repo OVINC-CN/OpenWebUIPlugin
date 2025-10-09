@@ -52,11 +52,11 @@ class Pipe:
         try:
             # call client
             async with httpx.AsyncClient(
-                    base_url=self.valves.base_url,
-                    headers={"Authorization": f"Bearer {self.valves.api_key}"},
-                    proxy=self.valves.proxy or None,
-                    trust_env=True,
-                    timeout=self.valves.timeout,
+                base_url=self.valves.base_url,
+                headers={"Authorization": f"Bearer {self.valves.api_key}"},
+                proxy=self.valves.proxy or None,
+                trust_env=True,
+                timeout=self.valves.timeout,
             ) as client:
                 async with client.stream(**payload) as response:
                     if response.status_code != 200:
@@ -78,6 +78,11 @@ class Pipe:
                             continue
                         if line.startswith("data: "):
                             line = line[6:]
+                        if line.strip() == "[DONE]":
+                            yield self._format_data(model=model, if_finished=True)
+                            break
+                        if not line.startswith("{"):
+                            continue
                         if isinstance(line, str):
                             line = json.loads(line)
                         # choices
@@ -142,11 +147,11 @@ class Pipe:
         return model, payload
 
     def _format_data(
-            self,
-            model: Optional[str] = "",
-            content: Optional[str] = "",
-            usage: Optional[dict] = None,
-            if_finished: bool = False,
+        self,
+        model: Optional[str] = "",
+        content: Optional[str] = "",
+        usage: Optional[dict] = None,
+        if_finished: bool = False,
     ) -> str:
         data = {
             "id": f"chat.{uuid.uuid4().hex}",

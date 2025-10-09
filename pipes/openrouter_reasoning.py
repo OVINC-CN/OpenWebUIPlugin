@@ -6,99 +6,164 @@ version: 0.0.1
 licence: MIT
 """
 
-import copy
 import json
 import logging
+import time
+import uuid
+from typing import AsyncIterable, Literal, Optional, Tuple
 
-from httpx import AsyncClient
+import httpx
+from fastapi import Request
+from open_webui.env import SRC_LOG_LEVELS
 from pydantic import BaseModel, Field
+from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel("INFO")
+logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(default="https://openrouter.ai/api/v1", description="openrouter base url")
-        api_key: str = Field(default="", description="openrouter api key")
-        request_timeout: int = Field(default=60, description="request timeout")
+        base_url: str = Field(default="https://openrouter.ai/api/v1", description="base url")
+        api_key: str = Field(default="", description="api key")
+        enable_reasoning: bool = Field(default=True, description="enable reasoning")
+        reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium", description="reasoning effort")
+        allow_params: str = Field(default="", description="allowed parameters")
+        timeout: int = Field(default=600, description="timeout")
+        proxy: Optional[str] = Field(default="", description="proxt")
+        models: str = Field(default="anthropic/claude-sonnet-4.5", description="available models, comma separated")
 
     def __init__(self):
         self.valves = self.Valves()
 
     def pipes(self):
-        models = ["anthropic/claude-3.7-sonnet"]
-        return [{"id": model, "name": model} for model in models]
+        return [{"id": model, "name": model} for model in self.valves.models.split(",") if model]
 
-    async def pipe(self, body: dict, __event_emitter__: callable):
-        modified_body = copy.deepcopy(body)
-        if "model" in modified_body:
-            modified_body["model"] = modified_body["model"].split(".", 1)[-1]
-        modified_body["reasoning"] = {"exclude": False}
+    async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
+        return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
 
-        headers = {
-            "Authorization": f"Bearer {self.valves.api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0"
-            ),
-        }
-        params = {
-            "method": "POST",
-            "url": f"{self.valves.base_url}/chat/completions",
-            "json": modified_body,
-            "headers": headers,
-        }
+    async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
+        model, payload = await self._build_payload(body=body)
         try:
-            if body.get("stream", False):
-                params["json"]["stream_options"] = {"include_usages": True}
-                return self._handle_streaming_request(params, __event_emitter__)
-            return await self._handle_normal_request(params)
-        except Exception as err:
-            logger.exception("reasoning error: %s", err)
-            raise err
-
-    async def _handle_normal_request(self, params: dict):
-        async with AsyncClient(http2=True, timeout=self.valves.request_timeout) as client:
-            response = await client.request(**params)
-            response.raise_for_status()
-            data = response.json()
-            if "choices" in data:
-                for choice in data["choices"]:
-                    if "message" in choice and "reasoning" in choice["message"]:
-                        reasoning = choice["message"]["reasoning"]
-                        choice["message"]["content"] = f"<think>{reasoning}</think>\n{choice['message']['content']}"
-            return data
-
-    async def _handle_streaming_request(self, params: dict, event_emitter: callable):
-        async with AsyncClient(http2=True, timeout=self.valves.request_timeout) as client:
-            async with client.stream(**params) as response:
-                response.raise_for_status()
-                thinking_state = -1  # -1: not started, 0: thinking, 1: answered
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    if line.startswith("data: [DONE]"):
-                        yield {"done": True}
+            # call client
+            async with httpx.AsyncClient(
+                base_url=self.valves.base_url,
+                headers={"Authorization": f"Bearer {self.valves.api_key}"},
+                proxy=self.valves.proxy or None,
+                trust_env=True,
+                timeout=self.valves.timeout,
+            ) as client:
+                async with client.stream(**payload) as response:
+                    if response.status_code != 200:
+                        text = ""
+                        async for line in response.aiter_lines():
+                            text += line
+                        logger.error("response invalid with %d: %s", response.status_code, text)
+                        response.raise_for_status()
                         return
-                    data = json.loads(line.lstrip("data: "))
-                    usage = data.get("usage")
-                    if usage:
-                        yield {"usage": usage}
-                    choices = data.get("choices")
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    reasoning = delta.get("reasoning")
-                    content = delta.get("content")
-                    if thinking_state == -1 and reasoning:
-                        thinking_state = 0
-                        yield "<think>"
-                    if thinking_state == 0 and not reasoning and content:
-                        thinking_state = 1
-                        yield "</think>\n\n"
-                    content = reasoning or content
-                    if content:
-                        yield content
+                    is_thinking = self.valves.enable_reasoning
+                    if is_thinking:
+                        yield self._format_data(model=model, content="<think>")
+                    async for line in response.aiter_lines():
+                        # parse data
+                        line = line.strip()
+                        if not line:
+                            continue
+                        if line.startswith("event:") or not line.startswith("data:"):
+                            continue
+                        if line.startswith("data: "):
+                            line = line[6:]
+                        if line.strip() == "[DONE]":
+                            yield self._format_data(model=model, if_finished=True)
+                            break
+                        if not line.startswith("{"):
+                            continue
+                        if isinstance(line, str):
+                            line = json.loads(line)
+                        # choices
+                        choices = line.get("choices") or []
+                        if not choices:
+                            continue
+                        # delta
+                        choice = choices[0]
+                        delta = choice.get("delta") or {}
+                        if not delta:
+                            continue
+                        # reasoning content
+                        reasoning_content = delta.get("reasoning") or ""
+                        if reasoning_content:
+                            yield self._format_data(model=model, content=reasoning_content)
+                        # content
+                        content = delta.get("content") or ""
+                        if content:
+                            if is_thinking:
+                                is_thinking = False
+                                yield self._format_data(model=model, content="</think>")
+                            yield self._format_data(model=model, content=content)
+                        # usage
+                        usage = line.get("usage") or {}
+                        if usage:
+                            yield self._format_data(model=model, usage=usage)
+                        # finish
+                        finish_reason = choice.get("finish_reason") or ""
+                        if finish_reason:
+                            yield self._format_data(model=model, if_finished=True)
+        except Exception as err:
+            logger.exception("[OAIProReasoning] failed of %s", err)
+            yield self._format_data(model=model, content=str(err), if_finished=True)
+
+    async def _build_payload(self, body: dict) -> Tuple[str, dict]:
+        # build messages
+        messages = body["messages"]
+        # build body
+        model = body["model"].split(".", 1)[1]
+        data = {
+            "model": model,
+            "messages": messages,
+            **(
+                {
+                    "reasoning": {
+                        "effort": body.get("reasoning_effort") or self.valves.reasoning_effort,
+                        "exclude": False,
+                    },
+                }
+                if self.valves.enable_reasoning
+                else {}
+            ),
+            "stream": True,
+        }
+        # other parameters
+        allowed_params = [k for k in self.valves.allow_params.split(",") if k]
+        for key, val in body.items():
+            if key in allowed_params:
+                data[key] = val
+        payload = {"method": "POST", "url": "/chat/completions", "json": data}
+        return model, payload
+
+    def _format_data(
+        self,
+        model: Optional[str] = "",
+        content: Optional[str] = "",
+        usage: Optional[dict] = None,
+        if_finished: bool = False,
+    ) -> str:
+        data = {
+            "id": f"chat.{uuid.uuid4().hex}",
+            "object": "chat.completion.chunk",
+            "choices": [],
+            "created": int(time.time()),
+            "model": model,
+        }
+        if content:
+            data["choices"] = [
+                {
+                    "finish_reason": "stop" if if_finished else "",
+                    "index": 0,
+                    "delta": {
+                        "content": content,
+                    },
+                }
+            ]
+        if usage:
+            data["usage"] = usage
+        return f"data: {json.dumps(data)}\n\n"
