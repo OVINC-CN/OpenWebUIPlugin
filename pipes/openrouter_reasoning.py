@@ -2,7 +2,7 @@
 title: OpenRouter Reasoning
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
