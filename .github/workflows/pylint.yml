@@ -1,6 +1,8 @@
 name: Pylint
 
 on:
+  push:
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
