@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.3
+version: 0.0.4
 licence: MIT
 """
 
@@ -170,6 +170,7 @@ class Pipe:
     async def _build_payload(self, body: dict) -> Tuple[str, dict]:
         # payload
         model = body["model"].split(".", 1)[1]
+        is_gemini_3_pro_series = "gemini-3-pro" in model
         all_contents = []
 
         # read messages
@@ -210,10 +211,16 @@ class Pipe:
 
         # get thinking budget
         reasoning_effort = body.get("reasoning_effort") or self.valves.reasoning_effort
-        if reasoning_effort == "auto":
-            thinking_budget = -1
+        if is_gemini_3_pro_series:
+            if reasoning_effort == "auto":
+                thinking_budget = "medium"
+            else:
+                thinking_budget = reasoning_effort
         else:
-            thinking_budget = json.loads(self.valves.reasoning_effort_map)[reasoning_effort]
+            if reasoning_effort == "auto":
+                thinking_budget = -1
+            else:
+                thinking_budget = json.loads(self.valves.reasoning_effort_map)[reasoning_effort]
 
         # other parameters
         extra_data = {}
@@ -230,7 +237,12 @@ class Pipe:
                 **extra_data,
                 **({"system_instruction": system_instruction} if system_instruction["parts"] else {}),
                 "contents": contents,
-                "generationConfig": {"thinkingConfig": {"thinkingBudget": thinking_budget, "includeThoughts": True}},
+                "generationConfig": {
+                    "thinkingConfig": {
+                        "includeThoughts": True,
+                        "thinkingLevel" if is_gemini_3_pro_series else "thinkingBudget": thinking_budget,
+                    }
+                },
             },
         }
 
