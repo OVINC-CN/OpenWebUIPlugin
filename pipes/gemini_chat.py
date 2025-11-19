@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.5
+version: 0.0.6
 licence: MIT
 """
 
@@ -111,7 +111,7 @@ class Pipe:
                                 # no thinking content
                                 else:
                                     # stop thinking
-                                    if is_thinking:
+                                    if is_thinking and part.get("text"):
                                         is_thinking = False
                                         yield self._format_data(is_stream=True, model=model, content="</think>")
                                     # text content
@@ -161,6 +161,8 @@ class Pipe:
                         }
                         if usage_metadata and "toolUsePromptTokenCount" in usage_metadata:
                             usage["prompt_tokens"] += usage_metadata["toolUsePromptTokenCount"]
+                        if usage_metadata and "thoughtsTokenCount" in usage_metadata:
+                            usage["completion_tokens"] += usage_metadata["thoughtsTokenCount"]
                         if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
                             usage["completion_tokens"] = usage["total_tokens"] - usage["prompt_tokens"]
                         yield self._format_data(is_stream=True, model=model, usage=usage)
