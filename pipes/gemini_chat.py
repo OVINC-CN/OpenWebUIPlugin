@@ -41,9 +41,9 @@ class Pipe:
         models: str = Field(default="gemini-2.5-pro", description="available models, comma separated")
 
     class UserValves(BaseModel):
-        thinking_budget: int = Field(default=-1, description="thinking budget (gemini 2.5)")
+        thinking_budget: int = Field(default=512, description="thinking budget (gemini 2.5), -1 means auto")
         reasoning_effort: Literal["low", "medium", "high"] = Field(
-            default="medium", description="reasoning effort (gemini 3)"
+            default="low", description="reasoning effort (gemini 3)"
         )
 
     def __init__(self):

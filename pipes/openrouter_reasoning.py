@@ -33,7 +33,7 @@ class Pipe:
         models: str = Field(default="anthropic/claude-sonnet-4.5", description="available models, comma separated")
 
     class UserValves(BaseModel):
-        reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium", description="reasoning effort")
+        reasoning_effort: Literal["low", "medium", "high"] = Field(default="low", description="reasoning effort")
 
     def __init__(self):
         self.valves = self.Valves()
