@@ -2,7 +2,7 @@
 title: OpenAI Image
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.4
+version: 0.0.5
 licence: MIT
 """
 
@@ -33,12 +33,14 @@ class Pipe:
         base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
         num_of_images: int = Field(default=1, description="number of images", ge=1, le=10)
+        timeout: int = Field(default=600, description="image timeout")
+        proxy: str = Field(default="", description="proxy url")
+
+    class UserValves(BaseModel):
         quality: Literal["low", "medium", "high", "auto"] = Field(
             default="auto", description="the quality of the image that will be generated"
         )
         size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(default="auto", description="image size")
-        timeout: int = Field(default=600, description="image timeout")
-        proxy: str = Field(default="", description="proxy url")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -57,7 +59,7 @@ class Pipe:
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         user = Users.get_user_by_id(__user__["id"])
         try:
-            model, payload = await self._build_payload(user=user, body=body)
+            model, payload = await self._build_payload(user=user, body=body, user_valves=__user__["valves"])
             # call client
             async with httpx.AsyncClient(
                 base_url=self.valves.base_url,
@@ -120,7 +122,7 @@ class Pipe:
         file_response = await get_file_content_by_id(id=file_id, user=user)
         return open(file_response.path, "rb")
 
-    async def _build_payload(self, user: UserModel, body: dict) -> (str, dict):
+    async def _build_payload(self, user: UserModel, body: dict, user_valves: UserValves) -> (str, dict):
         # payload
         model = body["model"].split(".", 1)[1]
         data = {
@@ -128,8 +130,8 @@ class Pipe:
             "prompt": "",
             "n": self.valves.num_of_images,
             "model": model,
-            "quality": self.valves.quality,
-            "size": self.valves.size,
+            "quality": user_valves.quality,
+            "size": user_valves.size,
         }
 
         # read messages
