@@ -2,7 +2,7 @@
 title: OpenRouter Reasoning
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -27,11 +27,13 @@ class Pipe:
         base_url: str = Field(default="https://openrouter.ai/api/v1", description="base url")
         api_key: str = Field(default="", description="api key")
         enable_reasoning: bool = Field(default=True, description="enable reasoning")
-        reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium", description="reasoning effort")
         allow_params: str = Field(default="", description="allowed parameters")
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default="", description="proxt")
         models: str = Field(default="anthropic/claude-sonnet-4.5", description="available models, comma separated")
+
+    class UserValves(BaseModel):
+        reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium", description="reasoning effort")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -43,7 +45,7 @@ class Pipe:
         return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
 
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
-        model, payload = await self._build_payload(body=body)
+        model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
         try:
             # call client
             async with httpx.AsyncClient(
@@ -112,7 +114,7 @@ class Pipe:
             logger.exception("[OAIProReasoning] failed of %s", err)
             yield self._format_data(model=model, content=str(err), if_finished=True)
 
-    async def _build_payload(self, body: dict) -> Tuple[str, dict]:
+    async def _build_payload(self, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
         # build messages
         messages = body["messages"]
         # build body
@@ -123,7 +125,7 @@ class Pipe:
             **(
                 {
                     "reasoning": {
-                        "effort": body.get("reasoning_effort") or self.valves.reasoning_effort,
+                        "effort": user_valves["reasoning_effort"],
                         "exclude": False,
                     },
                 }
