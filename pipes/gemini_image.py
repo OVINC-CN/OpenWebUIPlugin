@@ -38,10 +38,10 @@ class Pipe:
         api_key: str = Field(default="", description="api key")
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default="", description="proxy url")
-        image_size: Literal["1K", "2K", "4K"] = Field(default="1K", description="image size")
         models: str = Field(default="gemini-2.5-flash-image-preview", description="available models, comma separated")
 
     class UserValves(BaseModel):
+        image_size: Literal["1K", "2K", "4K"] = Field(default="2K", description="image size")
         aspect_ratio: str = Field(default="1:1", description="aspect ratio")
 
     def __init__(self):
@@ -212,7 +212,7 @@ class Pipe:
             if body.get("tools", []):
                 payload["json"]["tools"] = body["tools"]
             # image size
-            payload["json"]["generationConfig"]["imageConfig"]["imageSize"] = self.valves.image_size
+            payload["json"]["generationConfig"]["imageConfig"]["imageSize"] = user_valves.image_size
 
         return model, payload
 
