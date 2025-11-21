@@ -3,7 +3,7 @@ title: Gemini Image
 description: Image generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.4
+version: 0.0.5
 licence: MIT
 """
 
@@ -13,7 +13,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Optional, Tuple
+from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import BackgroundTasks, Request, UploadFile
@@ -38,10 +38,15 @@ class Pipe:
         api_key: str = Field(default="", description="api key")
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default="", description="proxy url")
+        image_size: Literal["1K", "2K", "4K"] = Field(default="1K", description="image size")
         models: str = Field(default="gemini-2.5-flash-image-preview", description="available models, comma separated")
+
+    class UserValves(BaseModel):
+        aspect_ratio: str = Field(default="1:1", description="aspect ratio")
 
     def __init__(self):
         self.valves = self.Valves()
+        self.user_valves = self.UserValves()
 
     def pipes(self):
         return [{"id": model, "name": model} for model in self.valves.models.split(",")]
@@ -57,7 +62,7 @@ class Pipe:
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         user = Users.get_user_by_id(__user__["id"])
         try:
-            model, payload = await self._build_payload(user=user, body=body)
+            model, payload = await self._build_payload(user=user, body=body, user_valves=__user__["valves"])
             # call client
             async with httpx.AsyncClient(
                 headers={"x-goog-api-key": self.valves.api_key},
@@ -147,7 +152,7 @@ class Pipe:
         file_response = await get_file_content_by_id(id=file_id, user=user)
         return open(file_response.path, "rb")
 
-    async def _build_payload(self, user: UserModel, body: dict) -> Tuple[str, dict]:
+    async def _build_payload(self, user: UserModel, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
         # payload
         model = body["model"].split(".", 1)[1]
         parts = []
@@ -189,7 +194,25 @@ class Pipe:
                 raise TypeError("message content invalid")
 
         # init payload
-        payload = {"url": self.valves.base_url.format(model=model), "json": {"contents": [{"parts": parts}]}}
+        payload = {
+            "url": self.valves.base_url.format(model=model),
+            "json": {
+                "contents": [{"parts": parts}],
+                "generationConfig": {
+                    "imageConfig": {
+                        "aspectRatio": user_valves.aspect_ratio,
+                    }
+                },
+            },
+        }
+
+        # check gemini 3
+        if "gemini-3-pro" in model:
+            # check tools
+            if body.get("tools", []):
+                payload["json"]["tools"] = body["tools"]
+            # image size
+            payload["json"]["generationConfig"]["imageConfig"]["imageSize"] = self.valves.image_size
 
         return model, payload
 
