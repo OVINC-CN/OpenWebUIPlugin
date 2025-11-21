@@ -125,7 +125,7 @@ class Pipe:
             **(
                 {
                     "reasoning": {
-                        "effort": user_valves["reasoning_effort"],
+                        "effort": user_valves.reasoning_effort,
                         "exclude": False,
                     },
                 }
