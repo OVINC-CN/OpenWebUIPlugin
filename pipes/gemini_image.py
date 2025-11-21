@@ -41,7 +41,7 @@ class Pipe:
         models: str = Field(default="gemini-2.5-flash-image-preview", description="available models, comma separated")
 
     class UserValves(BaseModel):
-        image_size: Literal["1K", "2K", "4K"] = Field(default="2K", description="image size")
+        image_size: Literal["1K", "2K", "4K"] = Field(default="1K", description="image size")
         aspect_ratio: str = Field(default="1:1", description="aspect ratio")
 
     def __init__(self):
