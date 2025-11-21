@@ -27,24 +27,22 @@ class Pipe:
     class Valves(BaseModel):
         base_url: str = Field(
             default="https://generativelanguage.googleapis.com/v1beta/models",
-            description="base url",
+            title="Base URL",
         )
-        api_key: str = Field(default="", description="api key")
-        allow_params: Optional[str] = Field(default="", description="allowed parameters, comma separated")
-        enable_reasoning: bool = Field(default=True, description="enable reasoning")
-        reasoning_effort_map: str = Field(
-            default=json.dumps({"low": 512, "medium": 10240, "high": 24576}),
-            description="reasoning effort to thinking budget",
+        api_key: str = Field(default="", title="API Key")
+        allow_params: Optional[str] = Field(
+            default="", title="透传参数", description="允许配置的参数，使用英文逗号分隔，例如 temperature"
         )
-        timeout: int = Field(default=600, description="timeout")
-        proxy: Optional[str] = Field(default=None, description="proxy url")
-        models: str = Field(default="gemini-2.5-pro", description="available models, comma separated")
+        enable_reasoning: bool = Field(default=True, title="展示思考内容")
+        timeout: int = Field(default=600, title="请求超时时间 (秒)")
+        proxy: Optional[str] = Field(default=None, title="代理地址")
+        models: str = Field(default="gemini-2.5-pro", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
-        thinking_budget: int = Field(default=512, description="thinking budget (gemini 2.5), -1 means auto")
         reasoning_effort: Literal["low", "medium", "high"] = Field(
-            default="low", description="reasoning effort (gemini 3)"
+            default="low", title="推理强度", description="适用 Gemini 3 系列"
         )
+        thinking_budget: int = Field(default=512, title="思考预算", description="适用 Gemini 2.5 系列，-1 表示自动控制")
 
     def __init__(self):
         self.valves = self.Valves()

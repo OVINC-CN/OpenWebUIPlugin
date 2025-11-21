@@ -33,17 +33,19 @@ class Pipe:
     class Valves(BaseModel):
         base_url: str = Field(
             default="https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            description="base url",
+            title="Base URL",
         )
-        api_key: str = Field(default="", description="api key")
-        timeout: int = Field(default=600, description="timeout")
-        proxy: Optional[str] = Field(default="", description="proxy url")
-        models: str = Field(default="gemini-2.5-flash-image-preview", description="available models, comma separated")
+        api_key: str = Field(default="", title="API Key")
+        timeout: int = Field(default=600, title="请求超时时间 (秒)")
+        proxy: Optional[str] = Field(default="", title="代理地址")
+        models: str = Field(
+            default="gemini-2.5-flash-image-preview", title="模型", description="使用英文逗号分隔多个模型"
+        )
 
     class UserValves(BaseModel):
-        image_size: Literal["1K", "2K", "4K"] = Field(default="1K", description="image size")
+        image_size: Literal["1K", "2K", "4K"] = Field(default="1K", title="图片大小 (像素)")
         aspect_ratio: Literal["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"] = Field(
-            default="1:1", description="aspect ratio"
+            default="1:1", title="图片比例"
         )
 
     def __init__(self):

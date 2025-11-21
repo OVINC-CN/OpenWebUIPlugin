@@ -30,17 +30,15 @@ logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(default="https://api.openai.com/v1", description="base url")
-        api_key: str = Field(default="", description="api key")
-        num_of_images: int = Field(default=1, description="number of images", ge=1, le=10)
-        timeout: int = Field(default=600, description="image timeout")
-        proxy: str = Field(default="", description="proxy url")
+        base_url: str = Field(default="https://api.openai.com/v1", title="Base URL")
+        api_key: str = Field(default="", title="API Key")
+        num_of_images: int = Field(default=1, title="图片数量", ge=1, le=10)
+        timeout: int = Field(default=600, title="请求超时（秒）")
+        proxy: str = Field(default="", title="代理地址")
 
     class UserValves(BaseModel):
-        quality: Literal["low", "medium", "high", "auto"] = Field(
-            default="auto", description="the quality of the image that will be generated"
-        )
-        size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(default="auto", description="image size")
+        quality: Literal["low", "medium", "high", "auto"] = Field(default="auto", title="图片质量")
+        size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(default="auto", title="图片比例")
 
     def __init__(self):
         self.valves = self.Valves()

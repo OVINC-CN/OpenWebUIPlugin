@@ -24,17 +24,19 @@ logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(default="https://api.openai.com/v1", description="base url")
-        api_key: str = Field(default="", description="api key")
-        enable_reasoning: bool = Field(default=True, description="enable reasoning")
-        summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
-        allow_params: Optional[str] = Field(default="", description="allowed parameters, comma separated")
-        timeout: int = Field(default=600, description="timeout")
-        proxy: Optional[str] = Field(default="", description="proxy url")
-        models: str = Field(default="gpt-5", description="available models, comma separated")
+        base_url: str = Field(default="https://api.openai.com/v1", title="Base URL")
+        api_key: str = Field(default="", title="API Key")
+        enable_reasoning: bool = Field(default=True, title="展示思考内容")
+        summary: Literal["auto", "concise", "detailed"] = Field(default="auto", title="思考内容摘要程度")
+        allow_params: Optional[str] = Field(
+            default="", title="透传参数", description="允许配置的参数，使用英文逗号分隔，例如 temperature"
+        )
+        timeout: int = Field(default=600, title="请求超时时间（秒）")
+        proxy: Optional[str] = Field(default="", title="代理地址")
+        models: str = Field(default="gpt-5", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
-        reasoning_effort: Literal["low", "medium", "high"] = Field(default="low", description="reasoning effort")
+        reasoning_effort: Literal["low", "medium", "high"] = Field(default="low", title="推理强度")
 
     def __init__(self):
         self.valves = self.Valves()

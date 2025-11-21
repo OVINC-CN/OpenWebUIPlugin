@@ -24,16 +24,18 @@ logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(default="https://openrouter.ai/api/v1", description="base url")
-        api_key: str = Field(default="", description="api key")
-        enable_reasoning: bool = Field(default=True, description="enable reasoning")
-        allow_params: str = Field(default="", description="allowed parameters")
-        timeout: int = Field(default=600, description="timeout")
-        proxy: Optional[str] = Field(default="", description="proxt")
-        models: str = Field(default="anthropic/claude-sonnet-4.5", description="available models, comma separated")
+        base_url: str = Field(default="https://openrouter.ai/api/v1", title="Base URL")
+        api_key: str = Field(default="", title="API Key")
+        enable_reasoning: bool = Field(default=True, title="展示思考内容")
+        allow_params: str = Field(
+            default="", title="透传参数", description="允许配置的参数，使用英文逗号分隔，例如 temperature"
+        )
+        timeout: int = Field(default=600, title="请求超时时间（秒）")
+        proxy: Optional[str] = Field(default="", title="代理地址")
+        models: str = Field(default="anthropic/claude-sonnet-4.5", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
-        reasoning_effort: Literal["low", "medium", "high"] = Field(default="low", description="reasoning effort")
+        reasoning_effort: Literal["low", "medium", "high"] = Field(default="low", title="推理强度")
 
     def __init__(self):
         self.valves = self.Valves()
