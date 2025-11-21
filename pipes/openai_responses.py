@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.5
+version: 0.0.6
 licence: MIT
 """
 
@@ -27,14 +27,16 @@ class Pipe:
         base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
         enable_reasoning: bool = Field(default=True, description="enable reasoning")
-        reasoning_effort: Literal["minimal", "low", "medium", "high"] = Field(
-            default="medium", description="reasoning effort"
-        )
         summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
         allow_params: Optional[str] = Field(default="", description="allowed parameters, comma separated")
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default="", description="proxy url")
         models: str = Field(default="gpt-5", description="available models, comma separated")
+
+    class UserValves(BaseModel):
+        reasoning_effort: Literal["minimal", "low", "medium", "high"] = Field(
+            default="medium", description="reasoning effort"
+        )
 
     def __init__(self):
         self.valves = self.Valves()
@@ -46,7 +48,7 @@ class Pipe:
         return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
 
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
-        model, payload = await self._build_payload(body=body)
+        model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
         try:
             # call client
             async with httpx.AsyncClient(
@@ -109,7 +111,9 @@ class Pipe:
             logger.exception("[OpenAIImagePipe] failed of %s", err)
             yield self._format_data(model=model, content=str(err), if_finished=True)
 
-    async def _build_payload(self, body: dict) -> Tuple[str, dict]:
+    async def _build_payload(self, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
+        model = body["model"].split(".", 1)[1]
+
         # build messages
         messages = []
         for message in body["messages"]:
@@ -133,14 +137,18 @@ class Pipe:
             else:
                 raise TypeError("Invalid message content type %s", type(message["content"]))
 
+        # reasoning
+        reasoning_effort = user_valves.reasoning_effort
+        if "5-pro" in model or "5.1-pro" in model:
+            reasoning_effort = "high"
+
         # build body
-        model = body["model"].split(".", 1)[1]
         data = {
             "model": model,
             "input": messages,
             "reasoning": {
-                "effort": body.get("reasoning_effort") or self.valves.reasoning_effort,
-                "summary": body.get("summary") or self.valves.summary,
+                "effort": reasoning_effort,
+                "summary": self.valves.summary,
             },
             "stream": True,
             "store": False,
