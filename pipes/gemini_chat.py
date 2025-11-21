@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.6
+version: 0.0.7
 licence: MIT
 """
 
@@ -32,9 +32,6 @@ class Pipe:
         api_key: str = Field(default="", description="api key")
         allow_params: Optional[str] = Field(default="", description="allowed parameters, comma separated")
         enable_reasoning: bool = Field(default=True, description="enable reasoning")
-        reasoning_effort: Literal["auto", "low", "medium", "high"] = Field(
-            default="auto", description="reasoning effort"
-        )
         reasoning_effort_map: str = Field(
             default=json.dumps({"low": 512, "medium": 10240, "high": 24576}),
             description="reasoning effort to thinking budget",
@@ -42,6 +39,12 @@ class Pipe:
         timeout: int = Field(default=600, description="timeout")
         proxy: Optional[str] = Field(default=None, description="proxy url")
         models: str = Field(default="gemini-2.5-pro", description="available models, comma separated")
+
+    class UserValves(BaseModel):
+        thinking_budget: int = Field(default=-1, description="thinking budget (gemini 2.5)")
+        reasoning_effort: Literal["low", "medium", "high"] = Field(
+            default="medium", description="reasoning effort (gemini 3)"
+        )
 
     def __init__(self):
         self.valves = self.Valves()
@@ -58,7 +61,7 @@ class Pipe:
         return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
 
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
-        model, payload = await self._build_payload(body=body)
+        model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
         try:
             # call client
             async with httpx.AsyncClient(
@@ -171,7 +174,7 @@ class Pipe:
             logger.exception("[GeminiChatPipe] failed of %s", err)
             yield self._format_data(is_stream=False, content=str(err))
 
-    async def _build_payload(self, body: dict) -> Tuple[str, dict]:
+    async def _build_payload(self, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
         # payload
         model = body["model"].split(".", 1)[1]
         is_gemini_3_pro_series = "gemini-3-pro" in model
@@ -214,17 +217,11 @@ class Pipe:
             contents.append(content)
 
         # get thinking budget
-        reasoning_effort = body.get("reasoning_effort") or self.valves.reasoning_effort
+        think_config = {"includeThoughts": True}
         if is_gemini_3_pro_series:
-            if reasoning_effort == "auto":
-                thinking_budget = "medium"
-            else:
-                thinking_budget = reasoning_effort
+            think_config["thinkingLevel"] = user_valves.reasoning_effort
         else:
-            if reasoning_effort == "auto":
-                thinking_budget = -1
-            else:
-                thinking_budget = json.loads(self.valves.reasoning_effort_map)[reasoning_effort]
+            think_config["thinkingBudget"] = user_valves.thinking_budget
 
         # other parameters
         extra_data = {}
@@ -241,12 +238,7 @@ class Pipe:
                 **extra_data,
                 **({"system_instruction": system_instruction} if system_instruction["parts"] else {}),
                 "contents": contents,
-                "generationConfig": {
-                    "thinkingConfig": {
-                        "includeThoughts": True,
-                        "thinkingLevel" if is_gemini_3_pro_series else "thinkingBudget": thinking_budget,
-                    }
-                },
+                "generationConfig": {"thinkingConfig": think_config},
             },
         }
 
