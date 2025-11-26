@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.6
+version: 0.0.7
 licence: MIT
 """
 
@@ -153,17 +153,24 @@ class Pipe:
             "stream": True,
             "store": False,
         }
+
         # max tokens
         if "max_completion_tokens" in body:
             data["max_output_tokens"] = body["max_completion_tokens"]
         elif "max_tokens" in body:
             data["max_output_tokens"] = body["max_tokens"]
+
         # other parameters
         allowed_params = [k for k in self.valves.allow_params.split(",") if k]
         for key, val in body.items():
             if key in allowed_params:
                 data[key] = val
         payload = {"method": "POST", "url": "/responses", "json": data}
+
+        # check tools
+        if body.get("tools", []):
+            payload["json"]["tools"] = body["tools"]
+
         return model, payload
 
     def _format_data(
