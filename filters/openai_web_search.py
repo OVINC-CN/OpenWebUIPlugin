@@ -3,7 +3,7 @@ title: OpenAI Web Search
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: OpenAI Web Search
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -28,7 +28,7 @@ class Filter:
 
     def inlet(self, body: dict) -> dict:
         if body.get("tools"):
-            body["tools"].append({"type": "web_search_preview"})
+            body["tools"].append({"type": "web_search"})
         else:
-            body["tools"] = [{"type": "web_search_preview"}]
+            body["tools"] = [{"type": "web_search"}]
         return body
