@@ -3,7 +3,7 @@ title: Gemini Deep Research
 description: Deep Research with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -16,6 +16,7 @@ from typing import AsyncIterable, Optional, Tuple
 
 import httpx
 from fastapi import Request
+from httpx import Response
 from open_webui.env import SRC_LOG_LEVELS
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
@@ -24,6 +25,26 @@ logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 INTERACTION_ID_LINE_PREFIX = "[interaction_id] "
+
+
+class APIException(Exception):
+    def __init__(self, status: int, content: str, response: Response):
+        self._status = status
+        self._content = content
+        self._response = response
+
+    def __str__(self) -> str:
+        # error msg
+        try:
+            return json.loads(self._content)["error"]["message"]
+        except Exception:
+            pass
+        # build in error
+        try:
+            self._response.raise_for_status()
+        except Exception as err:
+            return str(err)
+        return "Unknown API error"
 
 
 class Pipe:
@@ -80,9 +101,7 @@ class Pipe:
                     response.status_code,
                     response.text,
                 )
-                response.raise_for_status()
-                return
-            # parse resp
+                raise APIException(response.status_code, response.text, response)
             resp_data = response.json()
             yield self._format_data(
                 is_stream=True,
@@ -113,8 +132,7 @@ class Pipe:
                         response.status_code,
                         response.text,
                     )
-                    response.raise_for_status()
-                    return
+                    raise APIException(response.status_code, response.text, response)
                 # parse resp
                 resp_data = response.json()
                 yield self._task_status(last_status, resp_data)
