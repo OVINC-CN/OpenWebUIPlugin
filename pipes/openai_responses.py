@@ -179,6 +179,8 @@ class Pipe:
 
         # reasoning
         reasoning_effort = user_valves.reasoning_effort
+        if "chat" in model:
+            reasoning_effort = "medium"
 
         # build body
         data = {
