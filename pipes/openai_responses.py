@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.9
+version: 0.0.10
 licence: MIT
 """
 
@@ -14,12 +14,33 @@ from typing import AsyncIterable, Literal, Optional, Tuple, Union
 
 import httpx
 from fastapi import Request
+from httpx import Response
 from open_webui.env import SRC_LOG_LEVELS
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+
+
+class APIException(Exception):
+    def __init__(self, status: int, content: str, response: Response):
+        self._status = status
+        self._content = content
+        self._response = response
+
+    def __str__(self) -> str:
+        # error msg
+        try:
+            return json.loads(self._content)["error"]["message"]
+        except Exception:
+            pass
+        # build in error
+        try:
+            self._response.raise_for_status()
+        except Exception as err:
+            return str(err)
+        return "Unknown API error"
 
 
 class Pipe:
@@ -51,67 +72,62 @@ class Pipe:
 
     async def __stream_pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
-        try:
-            # call client
-            async with httpx.AsyncClient(
-                base_url=self.valves.base_url,
-                headers={"Authorization": f"Bearer {self.valves.api_key}"},
-                proxy=self.valves.proxy or None,
-                trust_env=True,
-                timeout=self.valves.timeout,
-            ) as client:
-                async with client.stream(**payload) as response:
-                    if response.status_code != 200:
-                        text = ""
-                        async for line in response.aiter_lines():
-                            text += line
-                        logger.error("response invalid with %d: %s", response.status_code, text)
-                        response.raise_for_status()
-                        return
-                    is_thinking = self.valves.enable_reasoning
-                    if is_thinking:
-                        yield self._format_stream_data(model=model, content="<think>")
+        # call client
+        async with httpx.AsyncClient(
+            base_url=self.valves.base_url,
+            headers={"Authorization": f"Bearer {self.valves.api_key}"},
+            proxy=self.valves.proxy or None,
+            trust_env=True,
+            timeout=self.valves.timeout,
+        ) as client:
+            async with client.stream(**payload) as response:
+                if response.status_code != 200:
+                    text = ""
                     async for line in response.aiter_lines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        if line.startswith("event:") or not line.startswith("data:"):
-                            continue
-                        if line.startswith("data: "):
-                            line = line[6:]
-                        if isinstance(line, str):
-                            line = json.loads(line)
-                        match line.get("type"):
-                            case "response.reasoning_summary_text.delta":
-                                if is_thinking:
-                                    yield self._format_stream_data(model=model, content=line["delta"])
-                            case "response.output_text.delta":
-                                if is_thinking:
-                                    is_thinking = False
-                                    yield self._format_stream_data(model=model, content="</think>")
+                        text += line
+                    logger.error("response invalid with %d: %s", response.status_code, text)
+                    raise APIException(status=response.status_code, content=text, response=response)
+                is_thinking = self.valves.enable_reasoning
+                if is_thinking:
+                    yield self._format_stream_data(model=model, content="<think>")
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("event:") or not line.startswith("data:"):
+                        continue
+                    if line.startswith("data: "):
+                        line = line[6:]
+                    if isinstance(line, str):
+                        line = json.loads(line)
+                    match line.get("type"):
+                        case "response.reasoning_summary_text.delta":
+                            if is_thinking:
                                 yield self._format_stream_data(model=model, content=line["delta"])
-                            case "response.completed":
-                                yield self._format_stream_data(
-                                    model=model, content="", usage=line["response"]["usage"], if_finished=True
-                                )
-                            case _:
-                                event_type = line["type"]
-                                if event_type.endswith("in_progress") or event_type.endswith("completed"):
-                                    event_type_split = event_type.split(".")[1:]
-                                    if len(event_type_split) == 2:
-                                        data = {
-                                            "event": {
-                                                "type": "status",
-                                                "data": {
-                                                    "description": " ".join(event_type_split),
-                                                    "done": event_type_split[1] == "completed",
-                                                },
-                                            }
+                        case "response.output_text.delta":
+                            if is_thinking:
+                                is_thinking = False
+                                yield self._format_stream_data(model=model, content="</think>")
+                            yield self._format_stream_data(model=model, content=line["delta"])
+                        case "response.completed":
+                            yield self._format_stream_data(
+                                model=model, content="", usage=line["response"]["usage"], if_finished=True
+                            )
+                        case _:
+                            event_type = line["type"]
+                            if event_type.endswith("in_progress") or event_type.endswith("completed"):
+                                event_type_split = event_type.split(".")[1:]
+                                if len(event_type_split) == 2:
+                                    data = {
+                                        "event": {
+                                            "type": "status",
+                                            "data": {
+                                                "description": " ".join(event_type_split),
+                                                "done": event_type_split[1] == "completed",
+                                            },
                                         }
-                                        yield f"data: {json.dumps(data)}\n\n"
-        except Exception as err:
-            logger.exception("[OpenAIImagePipe] failed of %s", err)
-            yield self._format_stream_data(model=model, content=str(err), if_finished=True)
+                                    }
+                                    yield f"data: {json.dumps(data)}\n\n"
 
     async def __non_stream_pipe(self, body: dict, __user__: dict, __request__: Request) -> dict:
         model, payload = await self._build_payload(body=body, user_valves=__user__["valves"], stream=False)
@@ -126,8 +142,7 @@ class Pipe:
         if response.status_code != 200:
             text = response.text
             logger.error("response invalid with %d: %s", response.status_code, text)
-            response.raise_for_status()
-            return {}
+            raise APIException(status=response.status_code, content=text, response=response)
         data = response.json()
         content = ""
         for output in data.get("output", []):
@@ -164,8 +179,6 @@ class Pipe:
 
         # reasoning
         reasoning_effort = user_valves.reasoning_effort
-        if "5-pro" in model or "5.1-pro" in model:
-            reasoning_effort = "high"
 
         # build body
         data = {
