@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.7
+version: 0.0.8
 licence: MIT
 """
 
@@ -152,12 +152,11 @@ class Pipe:
                             "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
                             "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
                             "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
-                            "prompt_token_details": (
-                                usage_metadata.pop("promptTokensDetails", []) if usage_metadata else []
-                            ),
-                            "completion_token_details": (
-                                usage_metadata.pop("candidatesTokensDetails", []) if usage_metadata else []
-                            ),
+                            "prompt_token_details": {
+                                "cached_tokens": (
+                                    usage_metadata.get("cachedContentTokenCount", 0) if usage_metadata else 0
+                                )
+                            },
                             "metadata": usage_metadata or {},
                         }
                         if usage_metadata and "toolUsePromptTokenCount" in usage_metadata:
