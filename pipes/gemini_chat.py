@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.8
+version: 0.0.9
 licence: MIT
 """
 
@@ -15,12 +15,33 @@ from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import Request
+from httpx import Response
 from open_webui.env import SRC_LOG_LEVELS
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+
+
+class APIException(Exception):
+    def __init__(self, status: int, content: str, response: Response):
+        self._status = status
+        self._content = content
+        self._response = response
+
+    def __str__(self) -> str:
+        # error msg
+        try:
+            return json.loads(self._content)["error"]["message"]
+        except Exception:
+            pass
+        # build in error
+        try:
+            self._response.raise_for_status()
+        except Exception as err:
+            return str(err)
+        return "Unknown API error"
 
 
 class Pipe:
@@ -60,116 +81,104 @@ class Pipe:
 
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
-        try:
-            # call client
-            async with httpx.AsyncClient(
-                headers={"x-goog-api-key": self.valves.api_key},
-                proxy=self.valves.proxy or None,
-                trust_env=True,
-                timeout=self.valves.timeout,
-            ) as client:
-                async with client.stream(**payload) as response:
-                    if response.status_code != 200:
-                        text = ""
-                        async for line in response.aiter_lines():
-                            text += line
-                        logger.error("response invalid with %d: %s", response.status_code, text)
-                        response.raise_for_status()
-                        return
-                    # parse resp
-                    is_thinking = self.valves.enable_reasoning
-                    if is_thinking:
-                        yield self._format_data(is_stream=True, model=model, content="<think>")
+        # call client
+        async with httpx.AsyncClient(
+            headers={"x-goog-api-key": self.valves.api_key},
+            proxy=self.valves.proxy or None,
+            trust_env=True,
+            timeout=self.valves.timeout,
+        ) as client:
+            async with client.stream(**payload) as response:
+                if response.status_code != 200:
+                    text = ""
                     async for line in response.aiter_lines():
-                        # format stream data
-                        line = line.strip()
-                        if not line:
+                        text += line
+                    logger.error("response invalid with %d: %s", response.status_code, text)
+                    raise APIException(response.status_code, text, response)
+                # parse resp
+                is_thinking = self.valves.enable_reasoning
+                if is_thinking:
+                    yield self._format_data(is_stream=True, model=model, content="<think>")
+                async for line in response.aiter_lines():
+                    # format stream data
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("event:") or not line.startswith("data:"):
+                        continue
+                    if line.startswith("data: "):
+                        line = line[6:]
+                    if isinstance(line, str):
+                        line = json.loads(line)
+                    for item in line["candidates"]:
+                        content = item.get("content", {})
+                        if not content:
+                            yield self._format_data(is_stream=True, model=model, content=item.get("finishReason", ""))
                             continue
-                        if line.startswith("event:") or not line.startswith("data:"):
+                        parts = content.get("parts", [])
+                        if not parts:
+                            yield self._format_data(is_stream=True, model=model, content=item.get("finishReason", ""))
                             continue
-                        if line.startswith("data: "):
-                            line = line[6:]
-                        if isinstance(line, str):
-                            line = json.loads(line)
-                        for item in line["candidates"]:
-                            content = item.get("content", {})
-                            if not content:
-                                yield self._format_data(
-                                    is_stream=True, model=model, content=item.get("finishReason", "")
-                                )
-                                continue
-                            parts = content.get("parts", [])
-                            if not parts:
-                                yield self._format_data(
-                                    is_stream=True, model=model, content=item.get("finishReason", "")
-                                )
-                                continue
-                            for part in parts:
-                                # thinking content
-                                if part.get("thought", False):
-                                    if is_thinking:
-                                        yield self._format_data(is_stream=True, model=model, content=part["text"])
-                                # no thinking content
-                                else:
-                                    # stop thinking
-                                    if is_thinking and part.get("text"):
-                                        is_thinking = False
-                                        yield self._format_data(is_stream=True, model=model, content="</think>")
-                                    # text content
-                                    if part.get("text"):
-                                        yield self._format_data(is_stream=True, model=model, content=part["text"])
-                                    # code content
-                                    if part.get("executableCode"):
-                                        data = {
-                                            "event": {
-                                                "type": "status",
-                                                "data": {
-                                                    "description": (
-                                                        f"executableCode {part['executableCode'].get('language', '')}"
-                                                    ),
-                                                    "done": False,
-                                                },
-                                            }
+                        for part in parts:
+                            # thinking content
+                            if part.get("thought", False):
+                                if is_thinking:
+                                    yield self._format_data(is_stream=True, model=model, content=part["text"])
+                            # no thinking content
+                            else:
+                                # stop thinking
+                                if is_thinking and part.get("text"):
+                                    is_thinking = False
+                                    yield self._format_data(is_stream=True, model=model, content="</think>")
+                                # text content
+                                if part.get("text"):
+                                    yield self._format_data(is_stream=True, model=model, content=part["text"])
+                                # code content
+                                if part.get("executableCode"):
+                                    data = {
+                                        "event": {
+                                            "type": "status",
+                                            "data": {
+                                                "description": (
+                                                    f"executableCode {part['executableCode'].get('language', '')}"
+                                                ),
+                                                "done": False,
+                                            },
                                         }
-                                        yield f"data: {json.dumps(data)}\n\n"
-                                    if part.get("codeExecutionResult"):
-                                        data = {
-                                            "event": {
-                                                "type": "status",
-                                                "data": {
-                                                    "description": (
-                                                        "codeExecutionResult "
-                                                        f"{part['codeExecutionResult'].get('outcome', '')}"
-                                                    ),
-                                                    "done": True,
-                                                },
-                                            }
+                                    }
+                                    yield f"data: {json.dumps(data)}\n\n"
+                                if part.get("codeExecutionResult"):
+                                    data = {
+                                        "event": {
+                                            "type": "status",
+                                            "data": {
+                                                "description": (
+                                                    "codeExecutionResult "
+                                                    f"{part['codeExecutionResult'].get('outcome', '')}"
+                                                ),
+                                                "done": True,
+                                            },
                                         }
-                                        yield f"data: {json.dumps(data)}\n\n"
-                        # format usage data
-                        usage_metadata = line.get("usageMetadata", None) or {}
-                        usage = {
-                            "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
-                            "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
-                            "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
-                            "prompt_token_details": {
-                                "cached_tokens": (
-                                    usage_metadata.get("cachedContentTokenCount", 0) if usage_metadata else 0
-                                )
-                            },
-                            "metadata": usage_metadata or {},
-                        }
-                        if usage_metadata and "toolUsePromptTokenCount" in usage_metadata:
-                            usage["prompt_tokens"] += usage_metadata["toolUsePromptTokenCount"]
-                        if usage_metadata and "thoughtsTokenCount" in usage_metadata:
-                            usage["completion_tokens"] += usage_metadata["thoughtsTokenCount"]
-                        if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
-                            usage["completion_tokens"] = usage["total_tokens"] - usage["prompt_tokens"]
-                        yield self._format_data(is_stream=True, model=model, usage=usage)
-
-        except Exception as err:
-            logger.exception("[GeminiChatPipe] failed of %s", err)
-            yield self._format_data(is_stream=False, content=str(err))
+                                    }
+                                    yield f"data: {json.dumps(data)}\n\n"
+                    # format usage data
+                    usage_metadata = line.get("usageMetadata", None) or {}
+                    usage = {
+                        "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
+                        "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
+                        "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
+                        "prompt_token_details": {
+                            "cached_tokens": (usage_metadata.get("cachedContentTokenCount", 0) if usage_metadata else 0)
+                        },
+                        "metadata": usage_metadata or {},
+                    }
+                    if usage_metadata and "toolUsePromptTokenCount" in usage_metadata:
+                        usage["prompt_tokens"] += usage_metadata["toolUsePromptTokenCount"]
+                    if usage_metadata and "thoughtsTokenCount" in usage_metadata:
+                        usage["completion_tokens"] += usage_metadata["thoughtsTokenCount"]
+                    if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
+                        usage["completion_tokens"] = usage["total_tokens"] - usage["prompt_tokens"]
+                    yield self._format_data(is_stream=True, model=model, usage=usage)
 
     async def _build_payload(self, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
         # payload
