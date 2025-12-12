@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.10
+version: 0.0.11
 licence: MIT
 """
 
