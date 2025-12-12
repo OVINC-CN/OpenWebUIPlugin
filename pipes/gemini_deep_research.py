@@ -100,7 +100,12 @@ class Pipe:
             timeout=self.valves.timeout,
         ) as client:
             while time.time() < end_time:
-                response = await client.get(url)
+                try:
+                    response = await client.get(url)
+                except httpx.RequestError as e:
+                    logger.error(f"[GeminiDeepResearchPipe] request error: {e}")
+                    await asyncio.sleep(self.valves.check_interval)
+                    continue
                 # check resp
                 if response.status_code != 200:
                     logger.error(
