@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.10
+version: 0.0.11
 licence: MIT
 """
 
@@ -10,7 +10,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Literal, Optional, Tuple, Union
+from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import Request
@@ -65,10 +65,8 @@ class Pipe:
     def pipes(self):
         return [{"id": model, "name": model} for model in self.valves.models.split(",") if model]
 
-    async def pipe(self, body: dict, __user__: dict, __request__: Request) -> Union[StreamingResponse, dict]:
-        if body.get("stream", True):
-            return StreamingResponse(self.__stream_pipe(body=body, __user__=__user__, __request__=__request__))
-        return await self.__non_stream_pipe(body=body, __user__=__user__, __request__=__request__)
+    async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
+        return StreamingResponse(self.__stream_pipe(body=body, __user__=__user__, __request__=__request__))
 
     async def __stream_pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
@@ -128,28 +126,6 @@ class Pipe:
                                         }
                                     }
                                     yield f"data: {json.dumps(data)}\n\n"
-
-    async def __non_stream_pipe(self, body: dict, __user__: dict, __request__: Request) -> dict:
-        model, payload = await self._build_payload(body=body, user_valves=__user__["valves"], stream=False)
-        async with httpx.AsyncClient(
-            base_url=self.valves.base_url,
-            headers={"Authorization": f"Bearer {self.valves.api_key}"},
-            proxy=self.valves.proxy or None,
-            trust_env=True,
-            timeout=self.valves.timeout,
-        ) as client:
-            response = await client.request(**payload)
-        if response.status_code != 200:
-            text = response.text
-            logger.error("response invalid with %d: %s", response.status_code, text)
-            raise APIException(status=response.status_code, content=text, response=response)
-        data = response.json()
-        content = ""
-        for output in data.get("output", []):
-            if output.get("type") == "message":
-                for _content in output.get("content", []):
-                    content += _content.get("text", "")
-        return self._format_non_stream_data(model=model, content=content, usage=data.get("usage"))
 
     async def _build_payload(self, body: dict, user_valves: UserValves, stream: bool = True) -> Tuple[str, dict]:
         model = body["model"].split(".", 1)[1]
@@ -240,30 +216,3 @@ class Pipe:
         if usage:
             data["usage"] = usage
         return f"data: {json.dumps(data)}\n\n"
-
-    def _format_non_stream_data(
-        self,
-        model: Optional[str] = "",
-        content: Optional[str] = "",
-        usage: Optional[dict] = None,
-    ) -> dict:
-        data = {
-            "id": f"chat.{uuid.uuid4().hex}",
-            "object": "chat.completion",
-            "choices": [],
-            "created": int(time.time()),
-            "model": model,
-        }
-        if content:
-            data["choices"] = [
-                {
-                    "finish_reason": "stop",
-                    "index": 0,
-                    "message": {
-                        "content": content,
-                    },
-                }
-            ]
-        if usage:
-            data["usage"] = usage
-        return data
