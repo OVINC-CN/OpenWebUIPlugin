@@ -3,7 +3,7 @@ title: Gemini Image
 description: Image generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.5
+version: 0.0.6
 licence: MIT
 """
 
@@ -17,6 +17,7 @@ from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import BackgroundTasks, Request, UploadFile
+from httpx import Response
 from open_webui.env import SRC_LOG_LEVELS
 from open_webui.models.users import UserModel, Users
 from open_webui.routers.files import get_file_content_by_id, upload_file
@@ -27,6 +28,26 @@ from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+
+
+class APIException(Exception):
+    def __init__(self, status: int, content: str, response: Response):
+        self._status = status
+        self._content = content
+        self._response = response
+
+    def __str__(self) -> str:
+        # error msg
+        try:
+            return json.loads(self._content)["error"]["message"]
+        except Exception:
+            pass
+        # build in error
+        try:
+            self._response.raise_for_status()
+        except Exception as err:
+            return str(err)
+        return "Unknown API error"
 
 
 class Pipe:
@@ -65,75 +86,68 @@ class Pipe:
 
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         user = Users.get_user_by_id(__user__["id"])
-        try:
-            model, payload = await self._build_payload(user=user, body=body, user_valves=__user__["valves"])
-            # call client
-            async with httpx.AsyncClient(
-                headers={"x-goog-api-key": self.valves.api_key},
-                proxy=self.valves.proxy or None,
-                trust_env=True,
-                timeout=self.valves.timeout,
-            ) as client:
-                response = await client.post(**payload)
-                if response.status_code != 200:
-                    raise httpx.HTTPStatusError(
-                        message=response.content.decode(), request=response.request, response=response
-                    )
-                response = response.json()
-
-                # upload image
-                results = []
-                for item in response["candidates"]:
-                    content = item.get("content", {})
-                    if not content:
-                        results.append(item.get("finishReason", ""))
-                        continue
-                    parts = content.get("parts", [])
-                    if not parts:
-                        results.append(item.get("finishReason", ""))
-                        continue
-                    for part in parts:
-                        if "text" in part:
-                            if part["text"].endswith("`"):
-                                results.append(part["text"][:-1])
-                            else:
-                                results.append(part["text"])
-                        if "inlineData" in part:
-                            inline_data = part["inlineData"]
-                            results.append(
-                                self._upload_image(
-                                    __request__=__request__,
-                                    user=user,
-                                    image_data=inline_data["data"],
-                                    mime_type=inline_data["mimeType"],
-                                )
+        model, payload = await self._build_payload(user=user, body=body, user_valves=__user__["valves"])
+        # call client
+        async with httpx.AsyncClient(
+            headers={"x-goog-api-key": self.valves.api_key},
+            proxy=self.valves.proxy or None,
+            trust_env=True,
+            timeout=self.valves.timeout,
+        ) as client:
+            response = await client.post(**payload)
+            if response.status_code != 200:
+                raise APIException(status=response.status_code, content=response.text, response=response)
+            response = response.json()
+            # upload image
+            results = []
+            for item in response["candidates"]:
+                content = item.get("content", {})
+                if not content:
+                    results.append(item.get("finishReason", ""))
+                    continue
+                parts = content.get("parts", [])
+                if not parts:
+                    results.append(item.get("finishReason", ""))
+                    continue
+                for part in parts:
+                    if "text" in part:
+                        if part["text"].endswith("`"):
+                            results.append(part["text"][:-1])
+                        else:
+                            results.append(part["text"])
+                    if "inlineData" in part:
+                        inline_data = part["inlineData"]
+                        results.append(
+                            self._upload_image(
+                                __request__=__request__,
+                                user=user,
+                                image_data=inline_data["data"],
+                                mime_type=inline_data["mimeType"],
                             )
+                        )
 
-                # format response data
-                usage_metadata = response.get("usageMetadata", None)
-                usage = {
-                    "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
-                    "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
-                    "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
-                    "prompt_token_details": usage_metadata.pop("promptTokensDetails", []) if usage_metadata else [],
-                    "completion_token_details": (
-                        usage_metadata.pop("candidatesTokensDetails", []) if usage_metadata else []
-                    ),
-                    "metadata": usage_metadata or {},
-                }
-                if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
-                    usage["completion_tokens"] = usage["total_tokens"] - usage["prompt_tokens"]
+            # format response data
+            usage_metadata = response.get("usageMetadata", None)
+            usage = {
+                "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
+                "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
+                "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
+                "prompt_token_details": usage_metadata.pop("promptTokensDetails", []) if usage_metadata else [],
+                "completion_token_details": (
+                    usage_metadata.pop("candidatesTokensDetails", []) if usage_metadata else []
+                ),
+                "metadata": usage_metadata or {},
+            }
+            if usage["prompt_tokens"] + usage["completion_tokens"] != usage["total_tokens"]:
+                usage["completion_tokens"] = usage["total_tokens"] - usage["prompt_tokens"]
 
-                # response
-                content = "\n\n".join(results)
-                if body.get("stream"):
-                    yield self._format_data(is_stream=True, model=model, content=content, usage=None)
-                    yield self._format_data(is_stream=True, model=model, content=None, usage=usage)
-                else:
-                    yield self._format_data(is_stream=False, model=model, content=content, usage=usage)
-        except Exception as err:
-            logger.exception("[GeminiImagePipe] failed of %s", err)
-            yield self._format_data(is_stream=False, content=str(err))
+            # response
+            content = "\n\n".join(results)
+            if body.get("stream"):
+                yield self._format_data(is_stream=True, model=model, content=content, usage=None)
+                yield self._format_data(is_stream=True, model=model, content=None, usage=usage)
+            else:
+                yield self._format_data(is_stream=False, model=model, content=content, usage=usage)
 
     def _upload_image(self, __request__: Request, user: UserModel, image_data: str, mime_type: str) -> str:
         file_item = upload_file(
