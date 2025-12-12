@@ -2,7 +2,7 @@
 title: OpenRouter Reasoning
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.3
+version: 0.0.4
 licence: MIT
 """
 
@@ -14,12 +14,33 @@ from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import Request
+from httpx import Response
 from open_webui.env import SRC_LOG_LEVELS
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+
+
+class APIException(Exception):
+    def __init__(self, status: int, content: str, response: Response):
+        self._status = status
+        self._content = content
+        self._response = response
+
+    def __str__(self) -> str:
+        # error msg
+        try:
+            return json.loads(self._content)["error"]["message"]
+        except Exception:
+            pass
+        # build in error
+        try:
+            self._response.raise_for_status()
+        except Exception as err:
+            return str(err)
+        return "Unknown API error"
 
 
 class Pipe:
@@ -48,73 +69,68 @@ class Pipe:
 
     async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
-        try:
-            # call client
-            async with httpx.AsyncClient(
-                base_url=self.valves.base_url,
-                headers={"Authorization": f"Bearer {self.valves.api_key}"},
-                proxy=self.valves.proxy or None,
-                trust_env=True,
-                timeout=self.valves.timeout,
-            ) as client:
-                async with client.stream(**payload) as response:
-                    if response.status_code != 200:
-                        text = ""
-                        async for line in response.aiter_lines():
-                            text += line
-                        logger.error("response invalid with %d: %s", response.status_code, text)
-                        response.raise_for_status()
-                        return
-                    is_thinking = self.valves.enable_reasoning
-                    if is_thinking:
-                        yield self._format_data(model=model, content="<think>")
+        # call client
+        async with httpx.AsyncClient(
+            base_url=self.valves.base_url,
+            headers={"Authorization": f"Bearer {self.valves.api_key}"},
+            proxy=self.valves.proxy or None,
+            trust_env=True,
+            timeout=self.valves.timeout,
+        ) as client:
+            async with client.stream(**payload) as response:
+                if response.status_code != 200:
+                    text = ""
                     async for line in response.aiter_lines():
-                        # parse data
-                        line = line.strip()
-                        if not line:
-                            continue
-                        if line.startswith("event:") or not line.startswith("data:"):
-                            continue
-                        if line.startswith("data: "):
-                            line = line[6:]
-                        if line.strip() == "[DONE]":
-                            yield self._format_data(model=model, if_finished=True)
-                            break
-                        if not line.startswith("{"):
-                            continue
-                        if isinstance(line, str):
-                            line = json.loads(line)
-                        # choices
-                        choices = line.get("choices") or []
-                        if not choices:
-                            continue
-                        # delta
-                        choice = choices[0]
-                        delta = choice.get("delta") or {}
-                        if not delta:
-                            continue
-                        # reasoning content
-                        reasoning_content = delta.get("reasoning") or ""
-                        if reasoning_content:
-                            yield self._format_data(model=model, content=reasoning_content)
-                        # content
-                        content = delta.get("content") or ""
-                        if content:
-                            if is_thinking:
-                                is_thinking = False
-                                yield self._format_data(model=model, content="</think>")
-                            yield self._format_data(model=model, content=content)
-                        # usage
-                        usage = line.get("usage") or {}
-                        if usage:
-                            yield self._format_data(model=model, usage=usage)
-                        # finish
-                        finish_reason = choice.get("finish_reason") or ""
-                        if finish_reason:
-                            yield self._format_data(model=model, if_finished=True)
-        except Exception as err:
-            logger.exception("[OAIProReasoning] failed of %s", err)
-            yield self._format_data(model=model, content=str(err), if_finished=True)
+                        text += line
+                    logger.error("response invalid with %d: %s", response.status_code, text)
+                    raise APIException(status=response.status_code, content=text, response=response)
+                is_thinking = self.valves.enable_reasoning
+                if is_thinking:
+                    yield self._format_data(model=model, content="<think>")
+                async for line in response.aiter_lines():
+                    # parse data
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("event:") or not line.startswith("data:"):
+                        continue
+                    if line.startswith("data: "):
+                        line = line[6:]
+                    if line.strip() == "[DONE]":
+                        yield self._format_data(model=model, if_finished=True)
+                        break
+                    if not line.startswith("{"):
+                        continue
+                    if isinstance(line, str):
+                        line = json.loads(line)
+                    # choices
+                    choices = line.get("choices") or []
+                    if not choices:
+                        continue
+                    # delta
+                    choice = choices[0]
+                    delta = choice.get("delta") or {}
+                    if not delta:
+                        continue
+                    # reasoning content
+                    reasoning_content = delta.get("reasoning") or ""
+                    if reasoning_content:
+                        yield self._format_data(model=model, content=reasoning_content)
+                    # content
+                    content = delta.get("content") or ""
+                    if content:
+                        if is_thinking:
+                            is_thinking = False
+                            yield self._format_data(model=model, content="</think>")
+                        yield self._format_data(model=model, content=content)
+                    # usage
+                    usage = line.get("usage") or {}
+                    if usage:
+                        yield self._format_data(model=model, usage=usage)
+                    # finish
+                    finish_reason = choice.get("finish_reason") or ""
+                    if finish_reason:
+                        yield self._format_data(model=model, if_finished=True)
 
     async def _build_payload(self, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
         # build messages
