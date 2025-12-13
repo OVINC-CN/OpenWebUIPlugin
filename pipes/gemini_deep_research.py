@@ -3,7 +3,7 @@ title: Gemini Deep Research
 description: Deep Research with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -24,7 +24,8 @@ from starlette.responses import StreamingResponse
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
-INTERACTION_ID_LINE_PREFIX = "[interaction_id] "
+# Prefix for the hidden interaction ID link
+INTERACTION_ID_URL_PREFIX = "http://interaction_id/"
 
 
 class APIException(Exception):
@@ -103,10 +104,11 @@ class Pipe:
                 )
                 raise APIException(response.status_code, response.text, response)
             resp_data = response.json()
+            # Embed ID as a hidden markdown link
             yield self._format_data(
                 is_stream=True,
                 model=model,
-                content=f"{INTERACTION_ID_LINE_PREFIX}{resp_data['id']}\n\n",
+                content=f"[]({INTERACTION_ID_URL_PREFIX}{resp_data['id']})\n",
             )
             yield self._task_status(last_status, resp_data)
         # loop for results
@@ -187,9 +189,12 @@ class Pipe:
             content = message["content"]
             if not isinstance(content, str):
                 continue
-            interaction_id_line = content.split("\n", 1)[0]
-            if interaction_id_line.startswith(INTERACTION_ID_LINE_PREFIX):
-                interaction_id = interaction_id_line[len(INTERACTION_ID_LINE_PREFIX) :].strip()
+            # Look for the hidden link format: [](http://interaction_id/...)
+            if INTERACTION_ID_URL_PREFIX in content:
+                start_index = content.find(INTERACTION_ID_URL_PREFIX) + len(INTERACTION_ID_URL_PREFIX)
+                end_index = content.find(")", start_index)
+                if end_index != -1:
+                    interaction_id = content[start_index:end_index]
 
         # read messages
         message = body["messages"][-1]
