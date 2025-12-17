@@ -2,7 +2,7 @@
 title: OpenAI Image
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.6
+version: 0.0.7
 licence: MIT
 """
 
@@ -56,6 +56,7 @@ class Pipe:
         num_of_images: int = Field(default=1, title="图片数量", ge=1, le=10)
         timeout: int = Field(default=600, title="请求超时（秒）")
         proxy: str = Field(default="", title="代理地址")
+        models: str = Field(default="gpt-image-1", title="支持模型列表", description="多个模型用逗号分隔")
 
     class UserValves(BaseModel):
         quality: Literal["low", "medium", "high", "auto"] = Field(default="auto", title="图片质量")
@@ -65,7 +66,7 @@ class Pipe:
         self.valves = self.Valves()
 
     def pipes(self) -> List[dict]:
-        return [{"id": "gpt-image-1", "name": "GPT Image 1"}]
+        return [{"id": m.strip(), "name": m.strip()} for m in self.valves.models.split(",") if m.strip()]
 
     async def pipe(
         self,
