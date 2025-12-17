@@ -3,7 +3,7 @@ title: Gemini Deep Research
 description: Deep Research with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -24,7 +24,8 @@ from starlette.responses import StreamingResponse
 logger = logging.getLogger(__name__)
 logger.setLevel(SRC_LOG_LEVELS["MAIN"])
 
-INTERACTION_ID_LINE_PREFIX = "[interaction_id] "
+INTERACTION_ID_LINE_PREFIX = "[](http://interaction.gemini.local/"
+INTERACTION_ID_LINE_SUFFIX = ")"
 
 
 class APIException(Exception):
@@ -106,7 +107,7 @@ class Pipe:
             yield self._format_data(
                 is_stream=True,
                 model=model,
-                content=f"{INTERACTION_ID_LINE_PREFIX}{resp_data['id']}\n\n",
+                content=f"{INTERACTION_ID_LINE_PREFIX}{resp_data['id']}{INTERACTION_ID_LINE_SUFFIX}\n\n",
             )
             yield self._task_status(last_status, resp_data)
         # loop for results
@@ -189,7 +190,9 @@ class Pipe:
                 continue
             interaction_id_line = content.split("\n", 1)[0]
             if interaction_id_line.startswith(INTERACTION_ID_LINE_PREFIX):
-                interaction_id = interaction_id_line[len(INTERACTION_ID_LINE_PREFIX) :].strip()
+                interaction_id = interaction_id_line[
+                    len(INTERACTION_ID_LINE_PREFIX) : -len(INTERACTION_ID_LINE_SUFFIX)
+                ].strip()
 
         # read messages
         message = body["messages"][-1]
@@ -242,7 +245,6 @@ class Pipe:
         }
         if interaction_id != "":
             payload["json"]["previous_interaction_id"] = interaction_id
-        logger.info("[GeminiDeepResearchPipe] payload: %s", payload)
 
         return model, payload
 
