@@ -242,7 +242,7 @@ class Pipe:
             "url": f"{self.valves.base_url}/{model}:streamGenerateContent?alt=sse",
             "json": {
                 **extra_data,
-                **({"system_instruction": system_instruction} if system_instruction["parts"] else {}),
+                **({"systemInstruction": system_instruction} if system_instruction["parts"] else {}),
                 "contents": contents,
                 "generationConfig": {"thinkingConfig": think_config},
             },
