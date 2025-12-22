@@ -3,7 +3,7 @@ title: Gemini Deep Research
 description: Deep Research with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.3
+version: 0.0.4
 licence: MIT
 """
 
@@ -17,12 +17,12 @@ from typing import AsyncIterable, Optional, Tuple
 import httpx
 from fastapi import Request
 from httpx import Response
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import GLOBAL_LOG_LEVEL
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+logger.setLevel(GLOBAL_LOG_LEVEL)
 
 INTERACTION_ID_LINE_PREFIX = "[](http://interaction.gemini.local/"
 INTERACTION_ID_LINE_SUFFIX = ")"

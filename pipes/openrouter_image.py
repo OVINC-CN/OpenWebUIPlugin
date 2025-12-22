@@ -3,7 +3,7 @@ title: OpenRouter Image
 description: Image generation with OpenRouter API
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -17,7 +17,7 @@ from typing import AsyncIterable, Optional, Tuple
 
 import httpx
 from fastapi import BackgroundTasks, Request, UploadFile
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import GLOBAL_LOG_LEVEL
 from open_webui.models.users import UserModel, Users
 from open_webui.routers.files import get_file_content_by_id, upload_file
 from openai._types import FileTypes
@@ -26,7 +26,7 @@ from starlette.datastructures import Headers
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+logger.setLevel(GLOBAL_LOG_LEVEL)
 
 
 class Pipe:

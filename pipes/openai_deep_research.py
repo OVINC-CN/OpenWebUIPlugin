@@ -2,7 +2,7 @@
 title: OpenAI Deep Research API
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.5
+version: 0.0.6
 licence: MIT
 """
 
@@ -14,12 +14,12 @@ from typing import AsyncIterable, Literal, Optional
 
 import httpx
 from fastapi import Request
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import GLOBAL_LOG_LEVEL
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+logger.setLevel(GLOBAL_LOG_LEVEL)
 
 
 class Pipe:

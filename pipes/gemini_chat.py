@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.10
+version: 0.0.11
 licence: MIT
 """
 
@@ -16,12 +16,12 @@ from typing import AsyncIterable, Literal, Optional, Tuple
 import httpx
 from fastapi import Request
 from httpx import Response
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import GLOBAL_LOG_LEVEL
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel(SRC_LOG_LEVELS["MAIN"])
+logger.setLevel(GLOBAL_LOG_LEVEL)
 
 
 class APIException(Exception):
