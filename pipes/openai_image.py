@@ -2,7 +2,7 @@
 title: OpenAI Image
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.8
+version: 0.0.9
 licence: MIT
 """
 
@@ -20,7 +20,6 @@ from httpx import Response
 from open_webui.env import GLOBAL_LOG_LEVEL
 from open_webui.models.users import UserModel, Users
 from open_webui.routers.files import get_file_content_by_id, upload_file
-from openai._types import FileTypes
 from pydantic import BaseModel, Field
 from starlette.datastructures import Headers
 from starlette.responses import StreamingResponse
@@ -131,7 +130,7 @@ class Pipe:
         image_url = __request__.app.url_path_for("get_file_content_by_id", id=file_item.id)
         return f"![openai-image-{file_item.id}]({image_url})"
 
-    async def _get_image_content(self, user: UserModel, markdown_string: str) -> FileTypes:
+    async def _get_image_content(self, user: UserModel, markdown_string: str):
         file_id = markdown_string.split("![openai-image-")[1].split("]")[0]
         file_response = await get_file_content_by_id(id=file_id, user=user)
         return open(file_response.path, "rb")
