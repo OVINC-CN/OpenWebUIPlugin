@@ -14,11 +14,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install pre-commit
-        run: |
-          pip install pre-commit pylint
-          make requirements
-          pip install -r requirements.txt
+      - name: Install lint
+        run: pip install pre-commit pylint
       - name: Run lint
         run: make lint
       - name: Check for changes
