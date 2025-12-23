@@ -59,7 +59,7 @@ class Pipe:
                     if response.status_code != 200:
                         text = ""
                         async for line in response.aiter_lines():
-                            text += line
+                            text += line  # pylint: disable=R1713
                         logger.error("response invalid with %d: %s", response.status_code, text)
                         response.raise_for_status()
                         return
@@ -125,10 +125,10 @@ class Pipe:
                             }
                         )
                     else:
-                        raise TypeError("Invalid message content type %s", item["type"])
+                        raise TypeError("Invalid message content type %s" % item["type"])
                 messages.append({"role": message["role"], "content": content})
             else:
-                raise TypeError("Invalid message content type %s", type(message["content"]))
+                raise TypeError("Invalid message content type %s" % type(message["content"]))
 
         # build body
         model = body["model"].split(".", 1)[1]

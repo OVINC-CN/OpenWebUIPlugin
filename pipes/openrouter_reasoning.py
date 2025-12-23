@@ -81,7 +81,7 @@ class Pipe:
                 if response.status_code != 200:
                     text = ""
                     async for line in response.aiter_lines():
-                        text += line
+                        text += line  # pylint: disable=R1713
                     logger.error("response invalid with %d: %s", response.status_code, text)
                     raise APIException(status=response.status_code, content=text, response=response)
                 is_thinking = self.valves.enable_reasoning
