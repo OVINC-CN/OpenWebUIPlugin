@@ -123,7 +123,7 @@ class Pipe:
                 try:
                     response = await client.get(url)
                 except httpx.RequestError as e:
-                    logger.error(f"[GeminiDeepResearchPipe] request error: {e}")
+                    logger.error("[GeminiDeepResearchPipe] request error: %s", e)
                     await asyncio.sleep(self.valves.check_interval)
                     continue
                 # check resp

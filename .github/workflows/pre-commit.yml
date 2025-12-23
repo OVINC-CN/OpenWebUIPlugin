@@ -1,0 +1,22 @@
+name: Pre-commit Check
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lint
+        run: pip install pre-commit pylint
+      - name: Run lint
+        run: make lint
+      - name: Check for changes
+        run: git diff --exit-code
