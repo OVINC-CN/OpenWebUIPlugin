@@ -24,30 +24,19 @@ logger.setLevel(GLOBAL_LOG_LEVEL)
 
 class Pipe:
     class Valves(BaseModel):
-        base_url: str = Field(
-            default="https://api.openai.com/v1", description="base url"
-        )
+        base_url: str = Field(default="https://api.openai.com/v1", description="base url")
         api_key: str = Field(default="", description="api key")
-        summary: Literal["auto", "concise", "detailed"] = Field(
-            default="auto", description="summary type"
-        )
-        enable_code_interpreter: bool = Field(
-            default=True, description="code interpreter"
-        )
-        enable_deep_research_workflow: bool = Field(
-            default=True,
-            description="enable multi-stage deep research workflow (clarification + prompt rewrite)",
-        )
-        intermediate_model: str = Field(
-            default="gpt-5.2-chat-latest",
-            description="intermediate model for clarification and prompt rewriting",
-        )
+        summary: Literal["auto", "concise", "detailed"] = Field(default="auto", description="summary type")
+        enable_code_interpreter: bool = Field(default=True, description="code interpreter")
+        enable_deep_research_workflow: bool = Field(default=True, description="enable multi-stage deep research workflow (clarification + prompt rewrite)")
+        intermediate_model: str = Field(default="gpt-5.2-chat-latest", description="intermediate model for clarification and prompt rewriting")
         timeout: int = Field(default=600, description="timeout")
         proxy: str = Field(default="", description="proxy url")
 
     class UserValves(BaseModel):
         reasoning_effort: Literal["medium", "high"] = Field(
-            default="medium", title="推理强度"
+            default="medium",
+            title="推理强度"
         )
 
     def __init__(self):
@@ -74,13 +63,9 @@ class Pipe:
                 }
             )
 
-    async def pipe(
-        self, body: dict, __user__: dict, __request__: Request, __event_emitter__=None
-    ) -> StreamingResponse:
+    async def pipe(self, body: dict, __user__: dict, __request__: Request, __event_emitter__=None) -> StreamingResponse:
         self.emitter = __event_emitter__
-        return StreamingResponse(
-            self._pipe(body=body, __user__=__user__, __request__=__request__)
-        )
+        return StreamingResponse(self._pipe(body=body, __user__=__user__, __request__=__request__))
 
     async def _ask_clarification(self, user_input: str, model: str) -> AsyncIterable:
         """Ask clarifying questions to gather more information from the user"""
@@ -121,13 +106,13 @@ IMPORTANT: Do NOT conduct any research yourself, just gather information that wi
                         yield self._format_data(
                             model=model,
                             content=f"Error in clarification: {response.status_code} {error_text.decode('utf-8')}",
-                            if_finished=True,
+                            if_finished=True
                         )
                         return
 
                     current_event = None
                     usage_data = None
-
+                    
                     async for line in response.aiter_lines():
                         if not line:
                             continue
@@ -143,10 +128,7 @@ IMPORTANT: Do NOT conduct any research yourself, just gather information that wi
                             continue
 
                         # Handle usage information from response.completed event
-                        if (
-                            current_event == "response.completed"
-                            and "response" in payload
-                        ):
+                        if current_event == "response.completed" and "response" in payload:
                             response_data = payload.get("response", {})
                             if "usage" in response_data:
                                 usage_data = response_data["usage"]
@@ -159,24 +141,24 @@ IMPORTANT: Do NOT conduct any research yourself, just gather information that wi
                                 yield self._format_data(model=model, content=delta)
 
                     # Send completion chunk
-                    yield self._format_data(
-                        model=model, content="", usage=usage_data, if_finished=True
-                    )
+                    yield self._format_data(model=model, content="", usage=usage_data, if_finished=True)
 
         except Exception as err:
             logger.exception("Clarification failed: %s", err)
             yield self._format_data(
-                model=model, content=f"Error in clarification: {err}", if_finished=True
+                model=model,
+                content=f"Error in clarification: {err}",
+                if_finished=True
             )
 
     def _extract_all_context(self, messages: list) -> str:
         """Extract all conversation context from messages"""
         context_parts = []
-
+        
         for msg in messages:
             role = msg.get("role", "")
             content = msg.get("content", "")
-
+            
             text = ""
             if isinstance(content, str):
                 text = content
@@ -189,10 +171,10 @@ IMPORTANT: Do NOT conduct any research yourself, just gather information that wi
                             text += part.get("text", "")
                         elif part.get("type") == "output_text":
                             text += part.get("text", "")
-
+            
             if text:
                 context_parts.append(f"[{role.upper()}]: {text}")
-
+        
         return "\n\n".join(context_parts)
 
     async def _rewrite_prompt(self, user_input: str) -> str:
@@ -254,10 +236,7 @@ GUIDELINES:
                     json=rewrite_body,
                 ) as response:
                     if response.status_code != 200:
-                        logger.warning(
-                            "Prompt rewrite failed with %d, using original input",
-                            response.status_code,
-                        )
+                        logger.warning("Prompt rewrite failed with %d, using original input", response.status_code)
                         return user_input
 
                     current_event = None
@@ -296,18 +275,16 @@ GUIDELINES:
         """Check if this is the initial request or a follow-up with clarifications"""
         user_messages = [msg for msg in messages if msg.get("role") == "user"]
         assistant_messages = [msg for msg in messages if msg.get("role") == "assistant"]
-
+        
         # If there are multiple user messages or assistant has asked clarifying questions, this is a follow-up
         if len(user_messages) > 1:
             return False
-
+        
         # Check if assistant asked clarifying questions
         if len(assistant_messages) > 0:
             for msg in assistant_messages:
                 content = msg.get("content", "")
-                if isinstance(content, str) and (
-                    "澄清" in content or "clarif" in content.lower()
-                ):
+                if isinstance(content, str) and ("澄清" in content or "clarif" in content.lower()):
                     return False
                 elif isinstance(content, list):
                     for part in content:
@@ -315,21 +292,19 @@ GUIDELINES:
                             text = part.get("text", "")
                             if "澄清" in text or "clarif" in text.lower():
                                 return False
-
+        
         return True
 
-    async def _pipe(
-        self, body: dict, __user__: dict, __request__: Request
-    ) -> AsyncIterable:
+    async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
         model, payload = await self._build_payload(body=body)
         messages = body.get("messages", [])
-
+        
         # Check if deep research workflow is enabled
         if self.valves.enable_deep_research_workflow and self.valves.intermediate_model:
             # Stage 1: Ask clarifying questions if this is the initial request
             if self._is_initial_request(messages):
                 await self.emit_status(message="正在分析您的研究需求...", done=False)
-
+                
                 # Extract the initial user input
                 user_input = ""
                 if messages:
@@ -345,60 +320,49 @@ GUIDELINES:
                             user_input = content
                         elif isinstance(content, list):
                             for part in content:
-                                if (
-                                    isinstance(part, dict)
-                                    and part.get("type") == "text"
-                                ):
+                                if isinstance(part, dict) and part.get("type") == "text":
                                     user_input = part.get("text", "")
                                     break
-
+                
                 if user_input:
                     # Ask clarifying questions
                     async for chunk in self._ask_clarification(user_input, model):
                         yield chunk
-
+                    
                     await self.emit_status(message="", done=True)
                     return
                 else:
                     logger.warning("No user input found for clarification")
-
+            
             # Stage 2 & 3: Apply prompt rewrite for follow-up requests
             else:
                 try:
-                    await self.emit_status(
-                        message="正在整合您的需求信息...", done=False
-                    )
-
+                    await self.emit_status(message="正在整合您的需求信息...", done=False)
+                    
                     # Extract ALL conversation context from messages
                     all_context = self._extract_all_context(messages)
-
+                    
                     if all_context:
                         # Rewrite the prompt with all context
                         enhanced_text = await self._rewrite_prompt(all_context)
-
+                        
                         if enhanced_text:
                             # Replace the entire input with the enhanced prompt as a single user message
                             payload["json"]["input"] = [
                                 {
                                     "role": "user",
-                                    "content": [
-                                        {"type": "input_text", "text": enhanced_text}
-                                    ],
+                                    "content": [{"type": "input_text", "text": enhanced_text}]
                                 }
                             ]
-                            logger.info(
-                                "Applied enhanced prompt with full conversation context to research request"
-                            )
-
-                    await self.emit_status(
-                        message="已开始深度研究，耗时较长，请耐心等待...", done=False
-                    )
+                            logger.info("Applied enhanced prompt with full conversation context to research request")
+                    
+                    await self.emit_status(message="已开始深度研究，耗时较长，请耐心等待...", done=False)
                 except Exception as err:
                     logger.warning("Failed to apply prompt rewrite: %s", err)
                     await self.emit_status(message="开始深度研究...", done=False)
         else:
             await self.emit_status(message="开始深度研究...", done=False)
-
+        
         try:
             # call client
             async with httpx.AsyncClient(
@@ -413,9 +377,7 @@ GUIDELINES:
                         text = ""
                         async for line in response.aiter_lines():
                             text += line
-                        logger.error(
-                            "response invalid with %d: %s", response.status_code, text
-                        )
+                        logger.error("response invalid with %d: %s", response.status_code, text)
                         response.raise_for_status()
                         return
                     is_thinking = True
@@ -432,42 +394,28 @@ GUIDELINES:
                             line = json.loads(line)
                         match line.get("type"):
                             case "response.reasoning_summary_text.delta":
-                                yield self._format_data(
-                                    model=model, content=line["delta"]
-                                )
+                                yield self._format_data(model=model, content=line["delta"])
                             case "response.output_text.delta":
                                 if is_thinking:
                                     is_thinking = False
-                                    yield self._format_data(
-                                        model=model, content="</think>"
-                                    )
-                                yield self._format_data(
-                                    model=model, content=line["delta"]
-                                )
+                                    yield self._format_data(model=model, content="</think>")
+                                yield self._format_data(model=model, content=line["delta"])
                             case "response.completed":
                                 await self.emit_status(message="研究完成", done=True)
                                 yield self._format_data(
-                                    model=model,
-                                    content="",
-                                    usage=line["response"]["usage"],
-                                    if_finished=True,
+                                    model=model, content="", usage=line["response"]["usage"], if_finished=True
                                 )
                             case _:
                                 event_type = line["type"]
-                                if event_type.endswith(
-                                    "in_progress"
-                                ) or event_type.endswith("completed"):
+                                if event_type.endswith("in_progress") or event_type.endswith("completed"):
                                     event_type_split = event_type.split(".")[1:]
                                     if len(event_type_split) == 2:
                                         data = {
                                             "event": {
                                                 "type": "status",
                                                 "data": {
-                                                    "description": " ".join(
-                                                        event_type_split
-                                                    ),
-                                                    "done": event_type_split[1]
-                                                    == "completed",
+                                                    "description": " ".join(event_type_split),
+                                                    "done": event_type_split[1] == "completed",
                                                 },
                                             }
                                         }
@@ -481,9 +429,7 @@ GUIDELINES:
         messages = []
         for message in body["messages"]:
             if isinstance(message["content"], str):
-                messages.append(
-                    {"content": message["content"], "role": message["role"]}
-                )
+                messages.append({"content": message["content"], "role": message["role"]})
             elif isinstance(message["content"], list):
                 content = []
                 for item in message["content"]:
@@ -500,9 +446,7 @@ GUIDELINES:
                         raise TypeError("Invalid message content type %s", item["type"])
                 messages.append({"role": message["role"], "content": content})
             else:
-                raise TypeError(
-                    "Invalid message content type %s", type(message["content"])
-                )
+                raise TypeError("Invalid message content type %s", type(message["content"]))
 
         # build body
         model = body["model"].split(".", 1)[1]
@@ -514,8 +458,7 @@ GUIDELINES:
             "input": messages,
             "tools": tools,
             "reasoning": {
-                "effort": body.get("reasoning_effort")
-                or self.user_valves.reasoning_effort,
+                "effort": body.get("reasoning_effort") or self.user_valves.reasoning_effort,
                 "summary": body.get("summary") or self.valves.summary,
             },
             "stream": True,
