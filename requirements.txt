@@ -1,0 +1,1 @@
+httpx[socks,http2,zstd,cli,brotli]==0.28.1
