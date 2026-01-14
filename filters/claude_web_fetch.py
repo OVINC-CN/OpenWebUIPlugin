@@ -41,9 +41,9 @@ class Filter:
         if self.valves.max_uses > 0:
             tool["max_uses"] = self.valves.max_uses
         if self.valves.allowed_domains:
-            tool["allowed_domains"] = [domain for domain in self.valves.allowed_domains.split(",")]
+            tool["allowed_domains"] = self.valves.allowed_domains.split(",")
         if self.valves.blocked_domains:
-            tool["blocked_domains"] = [domain for domain in self.valves.blocked_domains.split(",")]
+            tool["blocked_domains"] = self.valves.blocked_domains.split(",")
         if self.valves.max_tokens > 0:
             tool["max_content_tokens"] = self.valves.max_tokens
         if body.get("tools"):
