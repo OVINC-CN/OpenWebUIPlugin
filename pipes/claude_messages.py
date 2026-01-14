@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -195,6 +195,10 @@ class Pipe:
             if key in allowed_params:
                 data[key] = val
         payload = {"method": "POST", "url": "/messages", "json": data}
+
+        # check tools
+        if body.get("tools", []):
+            payload["json"]["tools"] = body["tools"]
 
         return model, payload
 
