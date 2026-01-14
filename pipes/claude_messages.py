@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -53,6 +53,11 @@ class Pipe:
         timeout: int = Field(default=600, title="请求超时时间（秒）")
         proxy: Optional[str] = Field(default="", title="代理地址")
         models: str = Field(default="claude-sonnet-4-5", title="模型", description="使用英文逗号分隔多个模型")
+        beta_tools: str = Field(
+            default="code_execution_20250825/code-execution-2025-08-25,web_fetch_20250910/web-fetch-2025-09-10",
+            title="Beta工具和请求头",
+            description="使用英文逗号分隔多个工具，使用/分隔工具和请求头",
+        )
 
     class UserValves(BaseModel):
         max_tokens: int = Field(default=64000, title="最大响应Token数")
@@ -86,6 +91,7 @@ class Pipe:
                     logger.error("response invalid with %d: %s", response.status_code, text)
                     raise APIException(status=response.status_code, content=text, response=response)
                 is_thinking = False
+                running_tool = ""
                 async for line in response.aiter_lines():
                     line = line.strip()
                     if not line:
@@ -101,10 +107,34 @@ class Pipe:
                             if line["content_block"].get("type") == "thinking":
                                 is_thinking = True
                                 yield self._format_stream_data(model=model, content="<think>")
+                            if line["content_block"].get("type") == "server_tool_use":
+                                running_tool = line["content_block"].get("name", "")
+                                data = {
+                                    "event": {
+                                        "type": "status",
+                                        "data": {
+                                            "description": f"{running_tool} running",
+                                            "done": False,
+                                        },
+                                    }
+                                }
+                                yield f"data: {json.dumps(data)}\n\n"
                         case "content_block_stop":
                             if is_thinking:
                                 is_thinking = False
                                 yield self._format_stream_data(model=model, content="</think>")
+                            if running_tool:
+                                data = {
+                                    "event": {
+                                        "type": "status",
+                                        "data": {
+                                            "description": f"{running_tool} finished",
+                                            "done": True,
+                                        },
+                                    }
+                                }
+                                running_tool = ""
+                                yield f"data: {json.dumps(data)}\n\n"
                         case "content_block_delta":
                             delta = line["delta"]
                             content = delta.get("thinking") or delta.get("text") or ""
@@ -197,8 +227,16 @@ class Pipe:
         payload = {"method": "POST", "url": "/messages", "json": data}
 
         # check tools
+        beta_headers = []
+        beta_tools = [i.strip().split("/", 1) for i in self.valves.beta_tools.split(",") if i.strip()]
         if body.get("tools", []):
             payload["json"]["tools"] = body["tools"]
+            for tool in body["tools"]:
+                for beta_tool, header in beta_tools:
+                    if beta_tool == tool.get("type"):
+                        beta_headers.append(header)
+        if beta_headers:
+            payload["headers"] = {"anthropic-beta": ",".join(beta_headers)}
 
         return model, payload
 
