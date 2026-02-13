@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.1
+version: 0.1.2
 licence: MIT
 """
 
@@ -65,6 +65,8 @@ class Pipe:
         effort: Literal["low", "medium", "high", "max"] = Field(
             default="high", title="努力程度", description="适用于 Opus4.6 及更新模型"
         )
+        enable_cache: bool = Field(default=True, title="启用缓存")
+        cache_timeout: Literal["5m", "1h"] = Field(default="5m", title="缓存过期时间")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -76,7 +78,8 @@ class Pipe:
         return StreamingResponse(self.__stream_pipe(body=body, __user__=__user__, __request__=__request__))
 
     async def __stream_pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable:
-        model, payload = await self._build_payload(body=body, user_valves=__user__["valves"])
+        user_valves = __user__["valves"]
+        model, payload = await self._build_payload(body=body, user_valves=user_valves)
         # call client
         async with httpx.AsyncClient(
             base_url=self.valves.base_url,
@@ -151,10 +154,16 @@ class Pipe:
                                 "completion_tokens": metadata.pop("output_tokens", 0),
                                 "prompt_token_details": {
                                     "cached_tokens": metadata.pop("cache_read_input_tokens", 0),
-                                    "cache_creation_input_tokens": metadata.pop("cache_creation_input_tokens", 0),
+                                    "cached_tokens_write": metadata.pop("cache_creation_input_tokens", 0),
                                 },
                                 "metadata": metadata,
                             }
+                            # claude rate for cache write
+                            rate = 1.25 if user_valves.cache_timeout == "5m" else 2.0
+                            usage["prompt_tokens"] += int(
+                                rate * usage["prompt_token_details"]["cached_tokens_write"]
+                                + usage["prompt_token_details"]["cached_tokens"]
+                            )
                             usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
                             yield self._format_stream_data(model=model, usage=usage, if_finished=True)
 
@@ -165,7 +174,7 @@ class Pipe:
         messages = []
         for message in body["messages"]:
             if isinstance(message["content"], str):
-                messages.append({"content": message["content"], "role": message["role"]})
+                messages.append({"content": [{"type": "text", "text": message["content"]}], "role": message["role"]})
             elif isinstance(message["content"], list):
                 content = []
                 for item in message["content"]:
@@ -198,15 +207,22 @@ class Pipe:
             else:
                 raise TypeError("Invalid message content type %s" % type(message["content"]))
 
+        # caching
+        if user_valves.enable_cache:
+            for message in messages:
+                if message["role"] == "user":
+                    for content in message["content"]:
+                        content["cache_control"] = {"type": "ephemeral", "ttl": user_valves.cache_timeout}
+
         # extract system prompt
-        system_prompt = ""
+        system_prompt = []
         new_messages = []
         for message in messages:
             if message["role"] == "system":
-                system_prompt += message["content"] + "\n"
+                for content in message["content"]:
+                    system_prompt.append(content)
                 continue
             new_messages.append(message)
-        system_prompt = system_prompt.strip()
 
         # thinking
         if user_valves.enable_thinking:
