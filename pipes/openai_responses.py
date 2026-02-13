@@ -57,7 +57,7 @@ class Pipe:
         models: str = Field(default="gpt-5", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
-        reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = Field(default="low", title="推理强度")
+        reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = Field(default="high", title="推理强度")
 
     def __init__(self):
         self.valves = self.Valves()
