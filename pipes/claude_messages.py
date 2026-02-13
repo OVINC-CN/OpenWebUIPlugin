@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.0
+version: 0.1.1
 licence: MIT
 """
 
@@ -10,7 +10,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Optional, Tuple
+from typing import AsyncIterable, Literal, Optional, Tuple
 
 import httpx
 from fastapi import Request
@@ -62,6 +62,9 @@ class Pipe:
         max_tokens: int = Field(default=64000, title="最大响应Token数")
         enable_thinking: bool = Field(default=True, title="启用思考")
         thinking_budget: int = Field(default=10240, title="思考预算")
+        effort: Literal["low", "medium", "high", "max"] = Field(
+            default="high", title="努力程度", description="适用于 Opus4.6 及更新模型"
+        )
 
     def __init__(self):
         self.valves = self.Valves()
@@ -205,16 +208,22 @@ class Pipe:
             new_messages.append(message)
         system_prompt = system_prompt.strip()
 
+        # thinking
+        if user_valves.enable_thinking:
+            if "opus-4-6" in model:
+                thinking = {"thinking": {"type": "adaptive"}, "output_config": {"effort": user_valves.effort}}
+            else:
+                thinking = {"thinking": {"type": "enabled", "budget_tokens": user_valves.thinking_budget}}
+        else:
+            thinking = {"type": "disabled"}
+
         # build body
         data = {
             "model": model,
             "messages": new_messages,
             "max_tokens": user_valves.max_tokens,
-            "thinking": {
-                "type": "enabled" if user_valves.enable_thinking else "disabled",
-                **({"budget_tokens": user_valves.thinking_budget} if user_valves.enable_thinking else {}),
-            },
             "stream": stream,
+            **thinking,
         }
         if system_prompt:
             data["system"] = system_prompt
