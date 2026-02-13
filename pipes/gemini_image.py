@@ -131,8 +131,8 @@ class Pipe:
                 "prompt_tokens": usage_metadata.pop("promptTokenCount", 0) if usage_metadata else 0,
                 "completion_tokens": usage_metadata.pop("candidatesTokenCount", 0) if usage_metadata else 0,
                 "total_tokens": usage_metadata.pop("totalTokenCount", 0) if usage_metadata else 0,
-                "prompt_token_details": usage_metadata.pop("promptTokensDetails", []) if usage_metadata else [],
-                "completion_token_details": (
+                "prompt_tokens_details": usage_metadata.pop("promptTokensDetails", []) if usage_metadata else [],
+                "completion_tokens_details": (
                     usage_metadata.pop("candidatesTokensDetails", []) if usage_metadata else []
                 ),
                 "metadata": usage_metadata or {},

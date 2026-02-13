@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.2
+version: 0.1.3
 licence: MIT
 """
 
@@ -152,7 +152,7 @@ class Pipe:
                             usage = {
                                 "prompt_tokens": metadata.pop("input_tokens", 0),
                                 "completion_tokens": metadata.pop("output_tokens", 0),
-                                "prompt_token_details": {
+                                "prompt_tokens_details": {
                                     "cached_tokens": metadata.pop("cache_read_input_tokens", 0),
                                     "cached_tokens_write": metadata.pop("cache_creation_input_tokens", 0),
                                 },
@@ -161,8 +161,8 @@ class Pipe:
                             # claude rate for cache write
                             rate = 1.25 if user_valves.cache_timeout == "5m" else 2.0
                             usage["prompt_tokens"] += int(
-                                rate * usage["prompt_token_details"]["cached_tokens_write"]
-                                + usage["prompt_token_details"]["cached_tokens"]
+                                rate * usage["prompt_tokens_details"]["cached_tokens_write"]
+                                + usage["prompt_tokens_details"]["cached_tokens"]
                             )
                             usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
                             yield self._format_stream_data(model=model, usage=usage, if_finished=True)
