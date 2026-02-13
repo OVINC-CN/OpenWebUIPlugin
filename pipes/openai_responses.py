@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.12
+version: 0.1.0
 licence: MIT
 """
 
@@ -86,8 +86,6 @@ class Pipe:
                     logger.error("response invalid with %d: %s", response.status_code, text)
                     raise APIException(status=response.status_code, content=text, response=response)
                 is_thinking = self.valves.enable_reasoning
-                if is_thinking:
-                    yield self._format_stream_data(model=model, content="<think>")
                 async for line in response.aiter_lines():
                     line = line.strip()
                     if not line:
@@ -101,15 +99,14 @@ class Pipe:
                     match line.get("type"):
                         case "response.reasoning_summary_text.delta":
                             if is_thinking:
-                                yield self._format_stream_data(model=model, content=line["delta"])
+                                yield self._format_stream_data(model=model, reasoning_content=line["delta"])
                         case "response.output_text.delta":
                             if is_thinking:
                                 is_thinking = False
-                                yield self._format_stream_data(model=model, content="</think>")
                             yield self._format_stream_data(model=model, content=line["delta"])
                         case "response.completed":
                             yield self._format_stream_data(
-                                model=model, content="", usage=line["response"]["usage"], if_finished=True
+                                model=model, usage=line["response"]["usage"], if_finished=True
                             )
                         case _:
                             event_type = line["type"]
@@ -187,10 +184,12 @@ class Pipe:
 
         return model, payload
 
+    # pylint: disable=R0913,R0917
     def _format_stream_data(
         self,
         model: Optional[str] = "",
         content: Optional[str] = "",
+        reasoning_content: Optional[str] = "",
         usage: Optional[dict] = None,
         if_finished: bool = False,
     ) -> str:
@@ -201,14 +200,12 @@ class Pipe:
             "created": int(time.time()),
             "model": model,
         }
-        if content:
+        if content or reasoning_content:
             data["choices"] = [
                 {
                     "finish_reason": "stop" if if_finished else "",
                     "index": 0,
-                    "delta": {
-                        "content": content,
-                    },
+                    "delta": {"content": content, "reasoning_content": reasoning_content},
                 }
             ]
         if usage:

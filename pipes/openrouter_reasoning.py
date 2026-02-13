@@ -2,7 +2,7 @@
 title: OpenRouter Reasoning
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.5
+version: 0.1.0
 licence: MIT
 """
 
@@ -85,8 +85,6 @@ class Pipe:
                     logger.error("response invalid with %d: %s", response.status_code, text)
                     raise APIException(status=response.status_code, content=text, response=response)
                 is_thinking = self.valves.enable_reasoning
-                if is_thinking:
-                    yield self._format_data(model=model, content="<think>")
                 async for line in response.aiter_lines():
                     # parse data
                     line = line.strip()
@@ -115,13 +113,12 @@ class Pipe:
                     # reasoning content
                     reasoning_content = delta.get("reasoning") or ""
                     if reasoning_content:
-                        yield self._format_data(model=model, content=reasoning_content)
+                        yield self._format_data(model=model, reasoning_content=reasoning_content)
                     # content
                     content = delta.get("content") or ""
                     if content:
                         if is_thinking:
                             is_thinking = False
-                            yield self._format_data(model=model, content="</think>")
                         yield self._format_data(model=model, content=content)
                     # usage
                     usage = line.get("usage") or {}
@@ -160,10 +157,12 @@ class Pipe:
         payload = {"method": "POST", "url": "/chat/completions", "json": data}
         return model, payload
 
+    # pylint: disable=R0913,R0917
     def _format_data(
         self,
         model: Optional[str] = "",
         content: Optional[str] = "",
+        reasoning_content: Optional[str] = "",
         usage: Optional[dict] = None,
         if_finished: bool = False,
     ) -> str:
@@ -174,14 +173,12 @@ class Pipe:
             "created": int(time.time()),
             "model": model,
         }
-        if content:
+        if content or reasoning_content:
             data["choices"] = [
                 {
                     "finish_reason": "stop" if if_finished else "",
                     "index": 0,
-                    "delta": {
-                        "content": content,
-                    },
+                    "delta": {"content": content, "reasoning_content": reasoning_content},
                 }
             ]
         if usage:

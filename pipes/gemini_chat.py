@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.11
+version: 0.1.0
 licence: MIT
 """
 
@@ -16,12 +16,11 @@ from typing import AsyncIterable, Literal, Optional, Tuple
 import httpx
 from fastapi import Request
 from httpx import Response
-from open_webui.env import GLOBAL_LOG_LEVEL
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel(GLOBAL_LOG_LEVEL)
+logger.setLevel("INFO")
 
 
 class APIException(Exception):
@@ -61,7 +60,7 @@ class Pipe:
 
     class UserValves(BaseModel):
         reasoning_effort: Literal["low", "medium", "high"] = Field(
-            default="low", title="推理强度", description="适用 Gemini 3 系列"
+            default="high", title="推理强度", description="适用 Gemini 3 系列"
         )
         thinking_budget: int = Field(default=512, title="思考预算", description="适用 Gemini 2.5 系列，-1 表示自动控制")
 
@@ -97,8 +96,6 @@ class Pipe:
                     raise APIException(response.status_code, text, response)
                 # parse resp
                 is_thinking = self.valves.enable_reasoning
-                if is_thinking:
-                    yield self._format_data(is_stream=True, model=model, content="<think>")
                 async for line in response.aiter_lines():
                     # format stream data
                     line = line.strip()
@@ -113,23 +110,31 @@ class Pipe:
                     for item in line["candidates"]:
                         content = item.get("content", {})
                         if not content:
-                            yield self._format_data(is_stream=True, model=model, content=item.get("finishReason", ""))
+                            yield self._format_data(
+                                is_stream=True,
+                                model=model,
+                                content=item.get("finishReason", ""),
+                            )
                             continue
                         parts = content.get("parts", [])
                         if not parts:
-                            yield self._format_data(is_stream=True, model=model, content=item.get("finishReason", ""))
+                            yield self._format_data(
+                                is_stream=True,
+                                model=model,
+                                content=item.get("finishReason", ""),
+                            )
                             continue
                         for part in parts:
                             # thinking content
                             if part.get("thought", False):
                                 if is_thinking:
-                                    yield self._format_data(is_stream=True, model=model, content=part["text"])
+                                    logger.info(part)
+                                    yield self._format_data(is_stream=True, model=model, reasoning_content=part["text"])
                             # no thinking content
                             else:
                                 # stop thinking
                                 if is_thinking and part.get("text"):
                                     is_thinking = False
-                                    yield self._format_data(is_stream=True, model=model, content="</think>")
                                 # text content
                                 if part.get("text"):
                                     yield self._format_data(is_stream=True, model=model, content=part["text"])
@@ -254,11 +259,13 @@ class Pipe:
 
         return model, payload
 
+    # pylint: disable=R0913,R0917
     def _format_data(
         self,
         is_stream: bool,
         model: Optional[str] = "",
         content: Optional[str] = "",
+        reasoning_content: Optional[str] = "",
         usage: Optional[dict] = None,
     ) -> str:
         data = {
@@ -268,12 +275,13 @@ class Pipe:
             "created": int(time.time()),
             "model": model,
         }
-        if content:
+        if content or reasoning_content:
             data["choices"] = [
                 {
                     "finish_reason": "stop",
                     "index": 0,
                     "delta" if is_stream else "message": {
+                        "reasoning_content": reasoning_content,
                         "content": content,
                     },
                 }

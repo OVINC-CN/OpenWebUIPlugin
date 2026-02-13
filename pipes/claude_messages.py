@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.3
+version: 0.1.0
 licence: MIT
 """
 
@@ -15,12 +15,11 @@ from typing import AsyncIterable, Optional, Tuple
 import httpx
 from fastapi import Request
 from httpx import Response
-from open_webui.env import GLOBAL_LOG_LEVEL
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
-logger.setLevel(GLOBAL_LOG_LEVEL)
+logger.setLevel("INFO")
 
 
 class APIException(Exception):
@@ -62,7 +61,7 @@ class Pipe:
     class UserValves(BaseModel):
         max_tokens: int = Field(default=64000, title="最大响应Token数")
         enable_thinking: bool = Field(default=True, title="启用思考")
-        thinking_budget: int = Field(default=1024, title="思考预算")
+        thinking_budget: int = Field(default=10240, title="思考预算")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -106,7 +105,6 @@ class Pipe:
                         case "content_block_start":
                             if line["content_block"].get("type") == "thinking":
                                 is_thinking = True
-                                yield self._format_stream_data(model=model, content="<think>")
                             if line["content_block"].get("type") == "server_tool_use":
                                 running_tool = line["content_block"].get("name", "")
                                 data = {
@@ -122,7 +120,6 @@ class Pipe:
                         case "content_block_stop":
                             if is_thinking:
                                 is_thinking = False
-                                yield self._format_stream_data(model=model, content="</think>")
                             if running_tool:
                                 data = {
                                     "event": {
@@ -137,8 +134,11 @@ class Pipe:
                                 yield f"data: {json.dumps(data)}\n\n"
                         case "content_block_delta":
                             delta = line["delta"]
-                            content = delta.get("thinking") or delta.get("text") or ""
-                            yield self._format_stream_data(model=model, content=content)
+                            yield self._format_stream_data(
+                                model=model,
+                                reasoning_content=delta.get("thinking") or "",
+                                content=delta.get("text") or "",
+                            )
                         case "message_delta":
                             metadata = line.get("usage") or None
                             if not metadata:
@@ -153,7 +153,7 @@ class Pipe:
                                 "metadata": metadata,
                             }
                             usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
-                            yield self._format_stream_data(model=model, content="", usage=usage, if_finished=True)
+                            yield self._format_stream_data(model=model, usage=usage, if_finished=True)
 
     async def _build_payload(self, body: dict, user_valves: UserValves, stream: bool = True) -> Tuple[str, dict]:
         model = body["model"].split(".", 1)[1]
@@ -240,10 +240,12 @@ class Pipe:
 
         return model, payload
 
+    # pylint: disable=R0913,R0917
     def _format_stream_data(
         self,
         model: Optional[str] = "",
         content: Optional[str] = "",
+        reasoning_content: Optional[str] = "",
         usage: Optional[dict] = None,
         if_finished: bool = False,
     ) -> str:
@@ -254,14 +256,12 @@ class Pipe:
             "created": int(time.time()),
             "model": model,
         }
-        if content:
+        if content or reasoning_content:
             data["choices"] = [
                 {
                     "finish_reason": "stop" if if_finished else "",
                     "index": 0,
-                    "delta": {
-                        "content": content,
-                    },
+                    "delta": {"content": content, "reasoning_content": reasoning_content},
                 }
             ]
         if usage:
