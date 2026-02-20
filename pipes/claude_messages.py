@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.3
+version: 0.1.4
 licence: MIT
 """
 
@@ -51,9 +51,9 @@ class Pipe:
         )
         timeout: int = Field(default=600, title="请求超时时间（秒）")
         proxy: Optional[str] = Field(default="", title="代理地址")
-        models: str = Field(default="claude-sonnet-4-5", title="模型", description="使用英文逗号分隔多个模型")
+        models: str = Field(default="claude-sonnet-4-6", title="模型", description="使用英文逗号分隔多个模型")
         beta_tools: str = Field(
-            default="code_execution_20250825/code-execution-2025-08-25,web_fetch_20250910/web-fetch-2025-09-10",
+            default="",
             title="Beta工具和请求头",
             description="使用英文逗号分隔多个工具，使用/分隔工具和请求头",
         )
@@ -226,7 +226,7 @@ class Pipe:
 
         # thinking
         if user_valves.enable_thinking:
-            if "opus-4-6" in model:
+            if "4-6" in model:
                 thinking = {"thinking": {"type": "adaptive"}, "output_config": {"effort": user_valves.effort}}
             else:
                 thinking = {"thinking": {"type": "enabled", "budget_tokens": user_valves.thinking_budget}}
