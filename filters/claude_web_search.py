@@ -3,7 +3,7 @@ title: Claude Web Search
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: Claude Web Search
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -36,7 +36,7 @@ class Filter:
         )
 
     def inlet(self, body: dict) -> dict:
-        tool: Dict[str, any] = {"type": "web_search_20250305", "name": "web_search"}
+        tool: Dict[str, any] = {"type": "web_search_20260209", "name": "web_search"}
         if self.valves.max_uses > 0:
             tool["max_uses"] = self.valves.max_uses
         if self.valves.allowed_domains:
