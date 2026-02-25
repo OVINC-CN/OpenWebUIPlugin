@@ -21,6 +21,7 @@ class Filter:
     class Valves(BaseModel):
         priority: int = Field(default=0, description="filter priority")
         threshold: float = Field(default=0.01, description="minimum cost to trigger event")
+        currency: str = Field(default="$", description="currency for cost")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -64,9 +65,9 @@ class Filter:
         completions_tokens = usage.get("completion_tokens", 0)
         total_cost = usage.get("total_cost", 0)
         total_cost = (
-            "< %s" % str(self.valves.threshold)
+            "< {}{}".format(self.valves.currency, str(self.valves.threshold))
             if total_cost < self.valves.threshold
-            else (("%%.%df" % len(str(self.valves.threshold).split(".")[1])) % total_cost)
+            else (("%%s%%.%df" % len(str(self.valves.threshold).split(".")[1])) % (self.valves.currency, total_cost))
         )
 
         # log usage
