@@ -3,7 +3,7 @@ title: Usage Event
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: Usage Event
-version: 0.0.1
+version: 0.0.2
 licence: MIT
 """
 
@@ -20,6 +20,7 @@ logger.setLevel(logging.INFO)
 class Filter:
     class Valves(BaseModel):
         priority: int = Field(default=0, description="filter priority")
+        threshold: float = Field(default=0.01, description="minimum cost to trigger event")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -62,7 +63,11 @@ class Filter:
         prompt_tokens = usage.get("prompt_tokens", 0)
         completions_tokens = usage.get("completion_tokens", 0)
         total_cost = usage.get("total_cost", 0)
-        total_cost = "< 0.01" if total_cost < 0.01 else "%.2f" % total_cost
+        total_cost = (
+            "< %s" % str(self.valves.threshold)
+            if total_cost < self.valves.threshold
+            else (("%%.%df" % len(str(self.valves.threshold).split(".")[1])) % total_cost)
+        )
 
         # log usage
         description = (
