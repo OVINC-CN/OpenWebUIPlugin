@@ -70,6 +70,12 @@ class Filter:
         else:
             duration_text = "%ds" % duration
 
+        # check ttft
+        if self.time_to_first_token > 0:
+            ttft_text = "%ds" % self.time_to_first_token
+        else:
+            ttft_text = "%ds" % duration
+
         # load data
         prompt_tokens = usage.get("prompt_tokens", 0)
         completions_tokens = usage.get("completion_tokens", 0)
@@ -86,14 +92,14 @@ class Filter:
             "Cost: %(total_cost)s | "
             "Duration: %(total_time)s | "
             "TPS: %(tps)d | "
-            "TTFT: %(ttft)ds"
+            "TTFT: %(ttft)s"
         ) % {
             "prompt_tokens": prompt_tokens,
             "completions_tokens": completions_tokens,
             "total_cost": total_cost,
             "total_time": duration_text,
             "tps": completions_tokens / duration,
-            "ttft": self.time_to_first_token,
+            "ttft": ttft_text,
         }
         if __event_emitter__:
             await __event_emitter__(
