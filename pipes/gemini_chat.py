@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.0
+version: 0.1.1
 licence: MIT
 """
 
@@ -62,7 +62,6 @@ class Pipe:
         reasoning_effort: Literal["low", "medium", "high"] = Field(
             default="high", title="推理强度", description="适用 Gemini 3 系列"
         )
-        thinking_budget: int = Field(default=512, title="思考预算", description="适用 Gemini 2.5 系列，-1 表示自动控制")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -188,7 +187,6 @@ class Pipe:
     async def _build_payload(self, body: dict, user_valves: UserValves) -> Tuple[str, dict]:
         # payload
         model = body["model"].split(".", 1)[1]
-        is_gemini_3_series = "gemini-3" in model
         all_contents = []
 
         # read messages
@@ -228,11 +226,7 @@ class Pipe:
             contents.append(content)
 
         # get thinking budget
-        think_config = {"includeThoughts": True}
-        if is_gemini_3_series:
-            think_config["thinkingLevel"] = user_valves.reasoning_effort
-        else:
-            think_config["thinkingBudget"] = user_valves.thinking_budget
+        think_config = {"includeThoughts": True, "thinkingLevel": user_valves.reasoning_effort}
 
         # other parameters
         extra_data = {}
