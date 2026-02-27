@@ -3,7 +3,7 @@ title: Gemini Web Search
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
 description: Gemini Web Search
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -27,8 +27,11 @@ class Filter:
         )
 
     def inlet(self, body: dict) -> dict:
+        tool = {"google_search": {}}
+        if "gemini-3.1-flash-image-preview" in body.get("model", ""):
+            tool["google_search"] = {"searchTypes": {"webSearch": {}, "imageSearch": {}}}
         if body.get("tools"):
-            body["tools"].append({"google_search": {}})
+            body["tools"].append(tool)
         else:
-            body["tools"] = [{"google_search": {}}]
+            body["tools"] = [tool]
         return body
