@@ -3,7 +3,7 @@ title: Gemini Chat
 description: Text generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.1
+version: 0.1.2
 licence: MIT
 """
 
@@ -60,7 +60,7 @@ class Pipe:
 
     class UserValves(BaseModel):
         reasoning_effort: Literal["low", "medium", "high"] = Field(
-            default="high", title="推理强度", description="适用 Gemini 3 系列"
+            default="low", title="推理强度", description="适用 Gemini 3 系列"
         )
 
     def __init__(self):
