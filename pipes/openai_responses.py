@@ -2,7 +2,7 @@
 title: OpenAI Responses
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.1
+version: 0.1.2
 licence: MIT
 """
 
@@ -48,7 +48,6 @@ class Pipe:
         base_url: str = Field(default="https://api.openai.com/v1", title="Base URL")
         api_key: str = Field(default="", title="API Key")
         enable_reasoning: bool = Field(default=True, title="展示思考内容")
-        summary: Literal["auto", "concise", "detailed"] = Field(default="auto", title="思考内容摘要程度")
         allow_params: Optional[str] = Field(
             default="", title="透传参数", description="允许配置的参数，使用英文逗号分隔，例如 temperature"
         )
@@ -57,7 +56,9 @@ class Pipe:
         models: str = Field(default="gpt-5", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
-        reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = Field(default="low", title="推理强度")
+        verbosity: Literal["low", "medium", "high"] = Field(default="medium", title="输出详细程度")
+        reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = Field(default="low", title="思考推理强度")
+        summary: Literal["auto", "concise", "detailed"] = Field(default="auto", title="思考输出摘要程度")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -159,7 +160,10 @@ class Pipe:
             "input": messages,
             "reasoning": {
                 "effort": reasoning_effort,
-                "summary": self.valves.summary,
+                "summary": user_valves.summary,
+            },
+            "text": {
+                "verbosity": user_valves.verbosity,
             },
             "stream": stream,
             "store": False,
