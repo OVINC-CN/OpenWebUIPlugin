@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.6
+version: 0.1.7
 licence: MIT
 """
 
@@ -206,13 +206,6 @@ class Pipe:
             else:
                 raise TypeError("Invalid message content type %s" % type(message["content"]))
 
-        # caching
-        if user_valves.enable_cache:
-            for message in messages:
-                if message["role"] == "user":
-                    for content in message["content"]:
-                        content["cache_control"] = {"type": "ephemeral", "ttl": user_valves.cache_timeout}
-
         # extract system prompt
         system_prompt = []
         new_messages = []
@@ -239,6 +232,10 @@ class Pipe:
         }
         if system_prompt:
             data["system"] = system_prompt
+
+        # caching
+        if user_valves.enable_cache:
+            data["cache_control"] = {"type": "ephemeral", "ttl": user_valves.cache_timeout}
 
         # other parameters
         allowed_params = [k for k in self.valves.allow_params.split(",") if k]
