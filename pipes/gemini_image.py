@@ -3,7 +3,7 @@ title: Gemini Image
 description: Image generation with Gemini
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.0.10
+version: 0.0.11
 licence: MIT
 """
 
@@ -180,8 +180,8 @@ class Pipe:
 
         # read messages
         messages = body["messages"]
-        if len(messages) >= 3:
-            messages = messages[-3:]
+        if len(messages) >= 2:
+            messages = messages[-2:]
         for message in messages:
             # ignore system message
             if message["role"] == "system":
