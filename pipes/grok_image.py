@@ -3,7 +3,7 @@ title: Grok Image
 description: Image generation with Grok
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.0
+version: 0.1.1
 licence: MIT
 """
 
@@ -59,6 +59,8 @@ class Pipe:
         models: str = Field(default="grok-imagine-image-pro", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
+        enable_nsfw: bool = Field(default=False, title="是否启用NSFW内容")
+        is_kids_mode: bool = Field(default=False, title="是否启用儿童模式")
         resolution: Literal["1k", "2k"] = Field(default="2k", title="图片分辨率")
         quality: Literal["low", "medium", "high"] = Field(default="high", title="图片质量")
         aspect_ratio: Literal[
@@ -186,7 +188,7 @@ class Pipe:
             "url": "/images/generations",
             "json": {
                 "model": model,
-                "prompt": prompt,
+                "prompt": f"<enable_nsfw>{user_valves.enable_nsfw}</enable_nsfw><is_kids_mode>{user_valves.is_kids_mode}</is_kids_mode>\n{prompt}",
                 "quality": user_valves.quality,
                 "aspect_ratio": user_valves.aspect_ratio,
                 "resolution": user_valves.resolution,
