@@ -10,7 +10,7 @@ import json
 import logging
 import time
 import uuid
-from typing import AsyncIterable, Literal, Optional, Tuple
+from typing import AsyncIterable, Optional, Tuple
 
 import httpx
 from fastapi import Request
@@ -32,7 +32,7 @@ class APIException(Exception):
     def __str__(self) -> str:
         # error msg
         try:
-            return json.loads(self._content)["error"]
+            return json.loads(self._content)["error"]["message"]
         except Exception:
             pass
         # build in error
@@ -56,8 +56,7 @@ class Pipe:
         models: str = Field(default="grok-4.20-beta", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
-        reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = Field(default="low", title="思考推理强度")
-        summary: Literal["auto", "concise", "detailed"] = Field(default="auto", title="思考输出摘要程度")
+        pass
 
     def __init__(self):
         self.valves = self.Valves()
@@ -105,9 +104,23 @@ class Pipe:
                                 is_thinking = False
                             yield self._format_stream_data(model=model, content=line["delta"])
                         case "response.completed":
-                            yield self._format_stream_data(
-                                model=model, usage=line["response"]["usage"], if_finished=True
-                            )
+                            usage_metadata = line["response"].get("usage") or {}
+                            logger.info(json.dumps(usage_metadata))
+                            usage = {
+                                "prompt_tokens": usage_metadata.pop("input_tokens", 0) if usage_metadata else 0,
+                                "completion_tokens": usage_metadata.pop("output_tokens", 0) if usage_metadata else 0,
+                                "total_tokens": usage_metadata.pop("total_tokens", 0) if usage_metadata else 0,
+                                "prompt_tokens_details": (
+                                    usage_metadata.pop("input_tokens_details") or {} if usage_metadata else {}
+                                ),
+                                "metadata": usage_metadata or {},
+                            }
+                            if usage["prompt_tokens_details"]:
+                                cached_tokens = usage["prompt_tokens_details"].get("cached_tokens") or 0
+                                if cached_tokens > usage["prompt_tokens"]:
+                                    usage["prompt_tokens"] = cached_tokens
+                                    usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+                            yield self._format_stream_data(model=model, usage=usage, if_finished=True)
                         case _:
                             event_type = line["type"]
                             if event_type.endswith("in_progress") or event_type.endswith("completed"):
@@ -150,17 +163,10 @@ class Pipe:
             else:
                 raise TypeError("Invalid message content type %s" % type(message["content"]))
 
-        # reasoning
-        reasoning_effort = user_valves.reasoning_effort
-
         # build body
         data = {
             "model": model,
             "input": messages,
-            "reasoning": {
-                "effort": reasoning_effort,
-                "summary": user_valves.summary,
-            },
             "stream": stream,
             "store": False,
         }
