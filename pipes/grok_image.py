@@ -188,7 +188,11 @@ class Pipe:
             "url": "/images/generations",
             "json": {
                 "model": model,
-                "prompt": f"<enable_nsfw>{user_valves.enable_nsfw}</enable_nsfw><is_kids_mode>{user_valves.is_kids_mode}</is_kids_mode>\n{prompt}",
+                "prompt": (
+                    f"<enable_nsfw>{str(user_valves.enable_nsfw).lower()}</enable_nsfw>"
+                    f"<is_kids_mode>{str(user_valves.is_kids_mode).lower()}</is_kids_mode>\n"
+                    f"{prompt}"
+                ),
                 "quality": user_valves.quality,
                 "aspect_ratio": user_valves.aspect_ratio,
                 "resolution": user_valves.resolution,
