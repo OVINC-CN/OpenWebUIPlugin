@@ -61,8 +61,8 @@ class Pipe:
     class UserValves(BaseModel):
         enable_nsfw: bool = Field(default=False, title="是否启用NSFW内容")
         is_kids_mode: bool = Field(default=False, title="是否启用儿童模式")
-        resolution: Literal["1k", "2k"] = Field(default="2k", title="图片分辨率")
-        quality: Literal["low", "medium", "high"] = Field(default="high", title="图片质量")
+        resolution: Literal["1k", "2k"] = Field(default="1k", title="图片分辨率")
+        quality: Literal["low", "medium", "high"] = Field(default="medium", title="图片质量")
         aspect_ratio: Literal[
             "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2", "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "auto"
         ] = Field(default="auto", title="图片比例")
