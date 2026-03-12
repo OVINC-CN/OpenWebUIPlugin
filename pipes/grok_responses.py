@@ -105,7 +105,6 @@ class Pipe:
                             yield self._format_stream_data(model=model, content=line["delta"])
                         case "response.completed":
                             usage_metadata = line["response"].get("usage") or {}
-                            logger.info(json.dumps(usage_metadata))
                             usage = {
                                 "prompt_tokens": usage_metadata.pop("input_tokens", 0) if usage_metadata else 0,
                                 "completion_tokens": usage_metadata.pop("output_tokens", 0) if usage_metadata else 0,
