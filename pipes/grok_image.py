@@ -59,6 +59,7 @@ class Pipe:
         models: str = Field(default="grok-imagine-image-pro", title="模型", description="使用英文逗号分隔多个模型")
 
     class UserValves(BaseModel):
+        resolution: Literal["1k", "2k"] = Field(default="2k", title="图片分辨率")
         quality: Literal["low", "medium", "high"] = Field(default="high", title="图片质量")
         aspect_ratio: Literal[
             "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2", "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "auto"
@@ -188,6 +189,7 @@ class Pipe:
                 "prompt": prompt,
                 "quality": user_valves.quality,
                 "aspect_ratio": user_valves.aspect_ratio,
+                "resolution": user_valves.resolution,
                 "response_format": "b64_json",
                 "n": self.valves.num_of_images,
             },
