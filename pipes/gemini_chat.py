@@ -127,7 +127,6 @@ class Pipe:
                             # thinking content
                             if part.get("thought", False):
                                 if is_thinking:
-                                    logger.info(part)
                                     yield self._format_data(is_stream=True, model=model, reasoning_content=part["text"])
                             # no thinking content
                             else:
