@@ -2,7 +2,7 @@
 title: Claude Messages
 author: OVINC CN
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.7
+version: 0.1.8
 licence: MIT
 """
 
@@ -61,7 +61,7 @@ class Pipe:
     class UserValves(BaseModel):
         max_tokens: int = Field(default=64000, title="最大响应Token数")
         enable_thinking: bool = Field(default=True, title="启用思考")
-        effort: Literal["low", "medium", "high", "max"] = Field(
+        effort: Literal["low", "medium", "high", "xhigh", "max"] = Field(
             default="low", title="努力程度", description="适用于 Sonnet 4.6 & Opus4.6 及更新模型"
         )
         enable_cache: bool = Field(default=True, title="启用缓存")
