@@ -3,13 +3,12 @@ title: Doubao Image
 description: Image generation with Doubao Seedream 5.0
 author: yuzukumo
 git_url: https://github.com/OVINC-CN/OpenWebUIPlugin.git
-version: 0.1.0
+version: 0.1.1
 licence: MIT
 """
 
 import base64
 import binascii
-import io
 import json
 import logging
 import mimetypes
@@ -18,13 +17,13 @@ import uuid
 from typing import Any, AsyncIterable, List, Literal, Optional, Tuple
 
 import httpx
-from fastapi import BackgroundTasks, Request, UploadFile
+from fastapi import Request
 from httpx import Response
 from open_webui.env import GLOBAL_LOG_LEVEL
-from open_webui.models.users import UserModel, Users
-from open_webui.routers.files import get_file_content_by_id, upload_file
+from open_webui.models.users import UserModel
+from open_webui.routers.files import get_file_content_by_id
+from open_webui.routers.images import upload_image
 from pydantic import BaseModel, Field
-from starlette.datastructures import Headers
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
@@ -83,16 +82,26 @@ class Pipe:
             {"id": model.strip(), "name": model.strip()} for model in self.valves.models.split(",") if model.strip()
         ]
 
-    async def pipe(self, body: dict, __user__: dict, __request__: Request) -> StreamingResponse:
+    async def pipe(
+        self,
+        body: dict,
+        __user__: dict,
+        __request__: Request,
+        __metadata__: Optional[dict] = None,
+    ) -> StreamingResponse:
         return StreamingResponse(
-            self._pipe(body=body, __user__=__user__, __request__=__request__),
+            self._pipe(body=body, __user__=__user__, __request__=__request__, __metadata__=__metadata__),
             media_type="text/event-stream",
         )
 
-    async def _pipe(self, body: dict, __user__: dict, __request__: Request) -> AsyncIterable[str]:
-        user = Users.get_user_by_id(__user__["id"])
-        if not user:
-            raise ValueError("user not found")
+    async def _pipe(
+        self,
+        body: dict,
+        __user__: dict,
+        __request__: Request,
+        __metadata__: Optional[dict] = None,
+    ) -> AsyncIterable[str]:
+        user = self._get_user(__user__)
 
         model, payload = await self._build_payload(user=user, body=body, user_valves=__user__.get("valves", {}))
 
@@ -112,10 +121,11 @@ class Pipe:
                 )
 
             response_json = response.json()
-            content, usage = self._parse_response_content(
+            content, usage = await self._parse_response_content(
                 response_json=response_json,
                 user=user,
                 __request__=__request__,
+                metadata=__metadata__,
                 output_format=payload["json"]["output_format"],
             )
             if body.get("stream"):
@@ -216,20 +226,22 @@ class Pipe:
             prompt = body.get("prompt", "Please generate an image.")
         return prompt, images
 
-    def _parse_response_content(
+    async def _parse_response_content(
         self,
         response_json: dict,
         user: UserModel,
         __request__: Request,
+        metadata: Optional[dict],
         output_format: str,
     ) -> Tuple[str, Optional[dict]]:
         results: List[str] = []
         mime_type = "image/png" if output_format == "png" else "image/jpeg"
         for item in response_json.get("data", []):
-            image_markdown = self._render_response_item(
+            image_markdown = await self._render_response_item(
                 item=item,
                 user=user,
                 __request__=__request__,
+                metadata=metadata,
                 fallback_mime_type=mime_type,
             )
             if image_markdown:
@@ -243,11 +255,12 @@ class Pipe:
 
         return "\n\n".join(results), response_json.get("usage")
 
-    def _render_response_item(
+    async def _render_response_item(
         self,
         item: dict,
         user: UserModel,
         __request__: Request,
+        metadata: Optional[dict],
         fallback_mime_type: str,
     ) -> str:
         if not isinstance(item, dict):
@@ -258,11 +271,12 @@ class Pipe:
         mime_type = item.get("mime_type") or fallback_mime_type
 
         if b64_json:
-            return self._upload_image(
+            return await self._upload_image(
                 __request__=__request__,
                 user=user,
                 image_data=b64_json,
                 mime_type=mime_type,
+                metadata=metadata,
             )
 
         if image_url:
@@ -270,31 +284,22 @@ class Pipe:
 
         return ""
 
-    def _upload_image(
+    async def _upload_image(
         self,
         __request__: Request,
         user: UserModel,
         image_data: str,
         mime_type: str,
+        metadata: Optional[dict],
     ) -> str:
         image_bytes = self._decode_base64_image(image_data)
-        file_ext = mimetypes.guess_extension(mime_type) or ".png"
-        if file_ext == ".jpe":
-            file_ext = ".jpg"
-
-        file_item = upload_file(
+        file_item, image_url = await upload_image(
             request=__request__,
-            background_tasks=BackgroundTasks(),
-            file=UploadFile(
-                file=io.BytesIO(image_bytes),
-                filename=f"generated-image-{uuid.uuid4().hex}{file_ext}",
-                headers=Headers({"content-type": mime_type}),
-            ),
-            process=False,
+            image_data=image_bytes,
+            content_type=mime_type,
+            metadata={"mime_type": mime_type, **(metadata or {})},
             user=user,
-            metadata={"mime_type": mime_type},
         )
-        image_url = __request__.app.url_path_for("get_file_content_by_id", id=file_item.id)
         return f"![doubao-image-{file_item.id}]({image_url})"
 
     async def _get_image_data_url_from_markdown(self, user: UserModel, markdown_string: str) -> str:
@@ -364,6 +369,19 @@ class Pipe:
                 return Pipe.UserValves(**user_valves.model_dump())
             return Pipe.UserValves(**user_valves.dict())
         return Pipe.UserValves(**(user_valves or {}))
+
+    @staticmethod
+    def _get_user(user_data: Any) -> UserModel:
+        if isinstance(user_data, UserModel):
+            return user_data
+        if isinstance(user_data, BaseModel):
+            if hasattr(user_data, "model_dump"):
+                user_data = user_data.model_dump()
+            else:
+                user_data = user_data.dict()
+        if isinstance(user_data, dict):
+            return UserModel(**{k: v for k, v in user_data.items() if k != "valves"})
+        raise ValueError("user not found")
 
     @staticmethod
     def _format_data(

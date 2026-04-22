@@ -39,6 +39,7 @@
 | | [`openrouter_reasoning.py`](pipes/openrouter_reasoning.py) | 集成 OpenRouter 推理模型 |
 | **DeepSeek** | [`deepseek_reasoning.py`](pipes/deepseek_reasoning.py) | 集成 DeepSeek 推理模型 |
 | **OAIPro** | [`oaipro_reasoning.py`](pipes/oaipro_reasoning.py) | 集成 OAIPro 推理 |
+| **Doubao** | [`doubao_image.py`](pipes/doubao_image.py) | 使用 Doubao Seedream 生成图像 |
 
 ### Tools (工具)
 工具提供可由 LLM 调用的特定功能 (Function Calling)。

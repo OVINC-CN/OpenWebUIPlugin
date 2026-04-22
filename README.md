@@ -39,6 +39,7 @@ Pipes integrate external models, services, or complex workflows into OpenWebUI.
 | | [`openrouter_reasoning.py`](pipes/openrouter_reasoning.py) | Integration with OpenRouter reasoning models |
 | **DeepSeek** | [`deepseek_reasoning.py`](pipes/deepseek_reasoning.py) | Integration with DeepSeek reasoning models |
 | **OAIPro** | [`oaipro_reasoning.py`](pipes/oaipro_reasoning.py) | Integration with OAIPro reasoning |
+| **Doubao** | [`doubao_image.py`](pipes/doubao_image.py) | Image generation using Doubao Seedream |
 
 ### Tools
 Tools provide specific functionalities that can be called by the LLM (Function Calling).
