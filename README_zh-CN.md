@@ -1,3 +1,6 @@
+> [!WARNING]
+> 本仓库已经停止维护，推荐使用 [DEEIX-AI/DEEIX-Chat](https://github.com/DEEIX-AI/DEEIX-Chat) 面向企业模型路由、多模态对话、文件、工具、计费、身份和运维的一体化 AI 工作台
+
 # OpenWebUI 插件库
 
 本仓库包含一系列适用于 [OpenWebUI](https://github.com/OVINC-CN/OpenWebUI) 的插件（Filters, Pipes 和 Tools）。这些插件通过添加联网搜索、代码解释、图像生成等新功能来扩展 OpenWebUI 的能力。

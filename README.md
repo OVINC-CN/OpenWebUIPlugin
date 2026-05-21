@@ -1,3 +1,6 @@
+> [!WARNING]
+> This repository is no longer maintained. We recommend using [DEEIX-AI/DEEIX-Chat](https://github.com/DEEIX-AI/DEEIX-Chat), an integrated AI workspace for enterprise model routing, multimodal conversations, files, tools, billing, identity, and operations.
+
 # OpenWebUI Plugins
 
 This repository contains a collection of plugins (Filters, Pipes, and Tools) for [OpenWebUI](https://github.com/OVINC-CN/OpenWebUI). These plugins extend the functionality of OpenWebUI by adding new capabilities such as web search, code interpretation, image generation, and more.
